@@ -16,6 +16,8 @@ dependencies = [
     "python-dotenv>=1.0.1",
     "aiofiles>=24.1.0",
     "openai-whisper>=20240930",
+    "supabase>=2.27.1",
+    "motor>=3.7.1",
 ]
 
 [build-system]

@@ -1,9 +1,10 @@
 """Settings configuration for MongoDB RAG Agent."""
 
-from pydantic_settings import BaseSettings
-from pydantic import Field, ConfigDict
-from dotenv import load_dotenv
 from typing import Optional
+
+from dotenv import load_dotenv
+from pydantic import Field
+from pydantic_settings import BaseSettings
 
 # Load environment variables from .env file
 load_dotenv()
@@ -12,12 +13,15 @@ load_dotenv()
 class Settings(BaseSettings):
     """Application settings with environment variable support."""
 
-    model_config = ConfigDict(
-        env_file=".env", env_file_encoding="utf-8", case_sensitive=False, extra="ignore"
+    # Database Configuration
+    db_type: str = Field(
+        default="mongo", description="Database type (mongo or supabase)"
     )
 
     # MongoDB Configuration
-    mongodb_uri: str = Field(..., description="MongoDB Atlas connection string")
+    mongodb_uri: Optional[str] = Field(
+        None, description="MongoDB Atlas connection string"
+    )
 
     mongodb_database: str = Field(default="rag_db", description="MongoDB database name")
 
@@ -39,40 +43,28 @@ class Settings(BaseSettings):
         description="Full-text search index name (must be created in Atlas UI)",
     )
 
-    # LLM Configuration (OpenAI-compatible)
-    llm_provider: str = Field(
-        default="openrouter",
-        description="LLM provider (openai, anthropic, gemini, ollama, etc.)",
-    )
+    # Supabase Configuration
+    supabase_url: Optional[str] = Field(None, description="Supabase project URL")
+    supabase_key: Optional[str] = Field(None, description="Supabase API key")
 
+    # LLM Configuration (Generic OpenAI-compatible)
     llm_api_key: str = Field(..., description="API key for the LLM provider")
-
-    llm_model: str = Field(
-        default="anthropic/claude-haiku-4.5",
-        description="Model to use for search and summarization",
+    llm_model: str = Field(..., description="Model ID to use")
+    llm_base_url: str = Field(
+        default="https://api.openai.com/v1",
+        description="Base URL for the LLM API (OpenAI-compatible)",
     )
 
-    llm_base_url: Optional[str] = Field(
-        default="https://openrouter.ai/api/v1",
-        description="Base URL for the LLM API (for OpenAI-compatible providers)",
-    )
-
-    # Embedding Configuration
-    embedding_provider: str = Field(default="openai", description="Embedding provider")
-
+    # Embedding Configuration (Generic OpenAI-compatible)
     embedding_api_key: str = Field(..., description="API key for embedding provider")
-
-    embedding_model: str = Field(
-        default="text-embedding-3-small", description="Embedding model to use"
+    embedding_model: str = Field(..., description="Embedding model ID to use")
+    embedding_base_url: str = Field(
+        default="https://api.openai.com/v1",
+        description="Base URL for embedding API (OpenAI-compatible)",
     )
-
-    embedding_base_url: Optional[str] = Field(
-        default="https://api.openai.com/v1", description="Base URL for embedding API"
-    )
-
     embedding_dimension: int = Field(
         default=1536,
-        description="Embedding vector dimension (1536 for text-embedding-3-small)",
+        description="Embedding vector dimension",
     )
 
     # Search Configuration
@@ -88,17 +80,36 @@ class Settings(BaseSettings):
         default=0.3, description="Default text weight for hybrid search (0-1)"
     )
 
+    semantic_match_threshold: float = Field(
+        default=0.3, description="Threshold for semantic search similarity (0-1)"
+    )
+
 
 def load_settings() -> Settings:
-    """Load settings with proper error handling."""
+    """Load settings with proper error handling and dynamic validation."""
     try:
-        return Settings()
+        settings = Settings()
+
+        # Validation based on db_type
+        if settings.db_type == "mongo":
+            if not settings.mongodb_uri:
+                raise ValueError("MONGODB_URI is required when DB_TYPE is 'mongo'")
+        elif settings.db_type == "supabase":
+            if not settings.supabase_url or not settings.supabase_key:
+                raise ValueError(
+                    "SUPABASE_URL and SUPABASE_KEY are required when DB_TYPE is 'supabase'"
+                )
+
+        return settings
     except Exception as e:
-        error_msg = f"Failed to load settings: {e}"
-        if "mongodb_uri" in str(e).lower():
-            error_msg += "\nMake sure to set MONGODB_URI in your .env file"
+        error_msg = f"Configuration Error: {e}"
+        # Provide helpful hints for common missing keys
         if "llm_api_key" in str(e).lower():
-            error_msg += "\nMake sure to set LLM_API_KEY in your .env file"
+            error_msg += "\nTip: Set LLM_API_KEY in your .env file"
+        if "llm_model" in str(e).lower():
+            error_msg += "\nTip: Set LLM_MODEL in your .env file"
         if "embedding_api_key" in str(e).lower():
-            error_msg += "\nMake sure to set EMBEDDING_API_KEY in your .env file"
+            error_msg += "\nTip: Set EMBEDDING_API_KEY in your .env file"
+        if "embedding_model" in str(e).lower():
+            error_msg += "\nTip: Set EMBEDDING_MODEL in your .env file"
         raise ValueError(error_msg) from e

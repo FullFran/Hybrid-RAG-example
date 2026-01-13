@@ -1,108 +1,57 @@
-# MongoDB RAG Agent - Búsqueda en Base de Conocimientos Inteligente
+# Hybrid RAG Agent - Clean Architecture
 
-Sistema RAG (Generación Aumentada por Recuperación) que combina **MongoDB Atlas Vector Search** con **Pydantic AI** para la recuperación inteligente de documentos, diseñado bajo principios de Arquitectura Limpia.
+Sistema RAG (Generación Aumentada por Recuperación) moderno y modular diseñado bajo principios de **Clean Architecture**. Este sistema permite la recuperación inteligente de documentos con total independencia de los proveedores de infraestructura (Base de Datos, LLM o Embeddings).
 
-## 🏛️ Arquitectura Objetivo: Clean RAG Architecture
+## 🏛️ Arquitectura: Clean RAG Design
 
-Este proyecto implementa una arquitectura **limpia (Clean Architecture)** y desacoplada. El objetivo principal es garantizar la intercambiabilidad de proveedores (Base de Datos, LLM, Embeddings) y organizar el código siguiendo principios de responsabilidad única.
+Este proyecto implementa una arquitectura desacoplada donde la lógica de negocio reside en el núcleo, protegida de cambios en servicios externos.
 
 ### Principios de Diseño
 
-- **Independencia de Frameworks**: La lógica de negocio no depende de bibliotecas externas.
-- **Testabilidad**: Las reglas de negocio se pueden probar sin la base de datos o el LLM.
-- **Independencia de la UI**: La interfaz (CLI o API) puede cambiar sin afectar al núcleo.
-- **Independencia de la Base de Datos**: Es posible cambiar de MongoDB a cualquier otra base de datos (como PostgreSQL con pgvector) implementando la interfaz correspondiente.
+- **Independencia de Proveedores**: Intercambia fácilmente entre MongoDB, Supabase, PostgreSQL o cualquier otra DB implementando su interfaz.
+- **Abstracción de IA**: Soporte para múltiples proveedores de LLM y Embeddings (OpenAI, Anthropic, Local).
+- **Testabilidad**: Lógica de RAG verificable sin necesidad de conexiones externas.
+- **CLI-First**: Interfaz potente por terminal diseñada para flujo de trabajo técnico.
 
-### Capas del Sistema e Interfaces
+### Estructura de Capas
 
-1. **Schemas (Capa de Dominio)**: Define modelos de datos puros (`Document`, `Chunk`, `SearchMatch`).
-2. **Interfaces (Contratos)**: Abstracciones que definen el comportamiento esperado de componentes externos:
-   - `IVectorRepository`: Búsqueda y persistencia de vectores.
-   - `ILLMProvider`: Generación de texto mediante modelos de lenguaje.
-   - `IEmbedder`: Conversión de texto a vectores numéricos.
-3. **Services (Capa de Aplicación)**: Orquestación de la lógica de negocio (`RAGService`, `IngestionService`).
-4. **Infrastructure (Capa Externa)**: Implementaciones concretas de las interfaces (`MongoRepository`, `OpenAIProvider`, `OpenAIEmbedder`).
+1.  **Domain (Core)**: Schemas puros (`Document`, `Chunk`) e interfaces abstractas (`IRepository`, `ILLMProvider`).
+2.  **Application (Services)**: Orquestación del flujo RAG e ingesta de datos.
+3.  **Infrastructure**: Implementaciones concretas (actualmente incluye **Supabase** y **OpenAI**).
+4.  **Endpoints**: Interfaz de usuario vía CLI (Rich).
 
 ---
 
-### Diagramas de Arquitectura (C4)
-
-#### Nivel 1: Contexto
-
-```mermaid
-C4Context
-    title Diagrama de Contexto: MongoDB RAG Agent
-
-    Person(user, "Usuario Técnico", "Interactúa con el sistema vía CLI para realizar consultas.")
-
-    System(rag_agent, "MongoDB RAG Agent", "Procesa documentos, genera embeddings y responde consultas usando RAG.")
-
-    System_Ext(mongodb, "MongoDB Atlas", "Almacena documentos, fragmentos (chunks) y realiza búsquedas vectoriales/texto.")
-    System_Ext(openai, "OpenAI / OpenRouter", "Provee servicios de embeddings (LLM) y generación de texto.")
-    System_Ext(docling, "Docling", "Servicio de procesamiento y conversión de documentos (PDF, Docx, etc.).")
-
-    Rel(user, rag_agent, "Realiza consultas y recibe respuestas")
-    Rel(rag_agent, mongodb, "Almacena y busca datos")
-    Rel(rag_agent, openai, "Genera embeddings y respuestas LLM")
-    Rel(rag_agent, docling, "Convierte documentos a Markdown")
-```
-
-#### Nivel 2: Contenedores e Interfaces
+### Diagrama de Arquitectura (C4)
 
 ```mermaid
 C4Container
-    title Arquitectura Limpia y Desacoplada (Contenedores)
+    title Arquitectura Limpia y Desacoplada
 
     Container_Boundary(api_layer, "Interface Layer (Endpoints)") {
         Component(cli, "CLI Adapter", "Rich/Click", "Punto de entrada por terminal")
     }
 
     Container_Boundary(app_layer, "Application Layer (Services)") {
-        Component(rag_service, "RAG Service", "Business Logic", "Orquesta recuperación y síntesis")
-        Component(ingest_service, "Ingest Service", "Business Logic", "Orquesta procesamiento de archivos")
+        Component(rag_service, "RAG Service", "Logic", "Orquesta recuperación y síntesis")
+        Component(ingest_service, "Ingest Service", "Logic", "Orquesta procesamiento de archivos")
     }
 
-    Container_Boundary(domain_layer, "Domain Layer (Schemas & Interfaces)") {
+    Container_Boundary(domain_layer, "Domain Layer (Core)") {
         Component(schemas, "Entities/Schemas", "Pydantic", "Modelos Document, Chunk, Match")
-        Component(repo_iface, "IVectorRepository", "Interface", "Contrato para DB")
-        Component(llm_iface, "ILLMProvider", "Interface", "Contrato para LLM")
-        Component(embed_iface, "IEmbedder", "Interface", "Contrato para Embeddings")
+        Component(interfaces, "Interfaces", "ABC", "Contratos para DB, LLM y Embedder")
     }
 
     Container_Boundary(infra_layer, "Infrastructure Layer (Providers)") {
-        Component(mongo_repo, "MongoDB Repo", "Motor", "Implementación MongoDB Atlas")
-        Component(openai_llm, "OpenAI LLM", "Client", "Implementación Generación")
-        Component(openai_emb, "OpenAI Embedder", "Client", "Implementación Vectores")
+        Component(supabase_repo, "Supabase Repo", "PostgreSQL", "Persistencia vectorial")
+        Component(openai_llm, "OpenAI LLM", "Provider", "Generación de texto")
+        Component(openai_emb, "OpenAI Embedder", "Provider", "Vectores")
     }
 
     Rel(cli, rag_service, "Usa")
-    Rel(rag_service, repo_iface, "Busca vía")
-    Rel(rag_service, llm_iface, "Genera vía")
-    Rel(ingest_service, repo_iface, "Persiste vía")
-    Rel(ingest_service, embed_iface, "Crea vectores vía")
-
-    Rel_D(repo_iface, mongo_repo, "Implementado por")
-    Rel_D(llm_iface, openai_llm, "Implementado por")
-    Rel_D(embed_iface, openai_emb, "Implementado por")
-```
-
----
-
-## 💻 Inversión de Dependencias: Ejemplo
-
-El `RAGService` no conoce los detalles de MongoDB o OpenAI; solo interactúa con contratos:
-
-```python
-# Capa de Aplicación (Independiente)
-class RAGService:
-    def __init__(self, repo: IVectorRepository, llm: ILLMProvider):
-        self.repo = repo  # Se inyecta la interfaz (Mongo o Postgres)
-        self.llm = llm
-
-    async def answer(self, query: str):
-        # 1. Obtener embedding (vía IEmbedder)
-        # 2. resultados = await self.repo.search(vector)
-        # 3. respuesta = await self.llm.generate(context, query)
+    Rel_D(rag_service, interfaces, "Interactúa vía")
+    Rel_D(interfaces, supabase_repo, "Implementado por")
+    Rel_D(interfaces, openai_llm, "Implementado por")
 ```
 
 ---
@@ -113,16 +62,11 @@ class RAGService:
 src/
 ├── core/
 │   ├── schemas/        # Modelos base: Document, Chunk, SearchMatch
-│   ├── dtos/           # Objetos de transferencia de datos (Input/Output)
-│   └── interfaces/     # Contratos abstractos (IVectorRepository, ILLMProvider)
+│   ├── dtos/           # Objetos de transferencia de datos
+│   └── interfaces/     # Contratos abstractos (IRepository, ILLMProvider)
 ├── services/           # Lógica de negocio (RAG, Ingestión)
-├── infrastructure/     # Implementaciones concretas de proveedores
-│   ├── database/       # mongo_repo.py, pg_repo.py (opcional)
-│   ├── llm/            # openai_provider.py, anthropic_provider.py
-│   └── embeddings/     # openai_embedder.py
-└── endpoints/          # Adaptadores de entrada (CLI, API)
-    ├── cli/            # Interfaz de terminal con Rich
-    └── api/            # (Planificado) FastAPI
+├── infrastructure/     # Implementaciones concretas de proveedores (Supabase, OpenAI)
+└── endpoints/          # Adaptadores de entrada (CLI)
 ```
 
 ---
@@ -131,22 +75,22 @@ src/
 
 ### 1. Instalación
 
-- Requiere Python 3.10+ y [UV Package Manager](https://astral.sh/uv/).
+Requiere Python 3.10+ y [UV Package Manager](https://astral.sh/uv/).
 
 ```bash
-git clone https://github.com/coleam00/MongoDB-RAG-Agent.git
-cd MongoDB-RAG-Agent
+git clone https://github.com/FullFran/Hybrid-RAG-example.git
+cd Hybrid-RAG-example
 uv venv && uv sync
 ```
 
 ### 2. Configuración
 
-Copia `.env.example` a `.env` y añade tus credenciales (MongoDB URI, LLM API Key, etc.).
+Copia `.env.example` a `.env` y configura tus variables de entorno (Supabase URL/Key, OpenAI API Key, etc.).
 
-### 3. Ingestión y Ejecución
+### 3. Uso
 
 ```bash
-# Ingestar documentos de /documents
+# Ingestar documentos
 uv run python -m src.endpoints.cli.ingest -d ./documents
 
 # Iniciar el chat inteligente
@@ -155,9 +99,10 @@ uv run python -m src.endpoints.cli.main
 
 ---
 
-## 🔍 Búsqueda Híbrida y RRF
+## 🛠️ Extensibilidad
 
-El proyecto utiliza **manual Reciprocal Rank Fusion (RRF)** para combinar resultados de búsqueda vectorial y de texto. Esto garantiza una precisión óptima en el **nivel gratuito M0** de MongoDB Atlas, superando las limitaciones de los operadores que están en fase de vista previa.
+Gracias a la arquitectura limpia, añadir un nuevo proveedor de base de datos es tan simple como:
 
-- **Eficacia**: Combina lo mejor de la semántica y las coincidencias exactas.
-- **Concurrent**: Ambas búsquedas se ejecutan simultáneamente para mantener baja latencia.
+1. Crear una nueva clase en `src/infrastructure/database/`.
+2. Implementar la interfaz `IRepository`.
+3. Inyectarla en el servicio al iniciar la aplicación.

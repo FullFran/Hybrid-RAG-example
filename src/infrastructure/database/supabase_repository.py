@@ -82,35 +82,34 @@ class SupabaseRepository(IRepository):
 
     async def text_search(self, query: str, limit: int) -> List[SearchMatch]:
         """
-        Perform full-text search using Postgres text search capabilities.
+        Perform full-text search using a custom PostgreSQL RPC that returns ts_rank.
         """
-        # Using .text_search on the 'chunks' table
-        # Assumes 'content' is part of a tsvector index or using websearch
-        logger.debug(f"Performing text search (wfts) for query: '{query}'")
-        result = (
-            self.client.table("chunks")
-            .select("id, document_id, content, metadata, documents(title, source)")
-            .filter("content", "wfts", query)
-            .range(0, limit - 1)
-            .execute()
-        )
-        logger.debug(f"Text search found {len(result.data)} matches")
+        rpc_params = {
+            "query_text": query,
+            "match_count": limit,
+        }
+
+        logger.debug(f"Performing text search (RPC) for query: '{query}'")
+        result = self.client.rpc("text_search_chunks", rpc_params).execute()
+        logger.debug(f"Text search found {len(result.data)} matches from RPC")
 
         matches = []
         for item in result.data:
-            doc_info = item.get("documents", {})
             chunk = Chunk(
                 _id=str(item["id"]),
                 document_id=str(item["document_id"]),
                 content=item["content"],
                 metadata=item.get("metadata", {}),
+                # Note: chunk_index is not returned by current RPC to keep it simple,
+                # but can be added if needed.
+                chunk_index=0,
             )
             matches.append(
                 SearchMatch(
                     chunk=chunk,
-                    similarity=1.0,  # Text search score is not directly metadata-exposed here easily
-                    document_title=doc_info.get("title", "Unknown"),
-                    document_source=doc_info.get("source", "Unknown"),
+                    similarity=item["similarity"],  # This is now the ts_rank
+                    document_title=item.get("doc_title", "Unknown"),
+                    document_source=item.get("doc_source", "Unknown"),
                 )
             )
         return matches

@@ -33,7 +33,8 @@ Objetos para mover datos entre capas, especialmente hacia fuera de los _Services
 
 Contiene la orquestación de la lógica de negocio. Utiliza interfaces (Abstracciones) para interactuar con externos.
 
-- `RAGService`: Orquesta la búsqueda y la generación. Ver [detalle de implementación](file:///home/franblakia/blakia/blakiaxhagalink/Hybrid-RAG-Agent/docs/rag_service_detail.md).
+- `AgentService`: **Punto de entrada principal**. Agente ReAct que decide si buscar en RAG o responder directamente. Ver [detalle de implementación](file:///home/franblakia/blakia/blakiaxhagalink/Hybrid-RAG-Agent/docs/agent_service_detail.md).
+- `RAGService`: Orquesta la búsqueda híbrida y la generación con contexto. Ver [detalle de implementación](file:///home/franblakia/blakia/blakiaxhagalink/Hybrid-RAG-Agent/docs/rag_service_detail.md).
 - `IngestionService`: Orquesta la conversión, el chunking y el guardado.
 
 ### D. Endpoints (Interface Adapter Layer)
@@ -64,6 +65,7 @@ flowchart TB
     end
 
     subgraph Services["Application Layer"]
+        Agent[AgentService]
         RAG[RAGService]
         Ingest[IngestService]
     end
@@ -93,7 +95,8 @@ flowchart TB
     end
 
     User --> CLI
-    CLI --> RAG
+    CLI --> Agent
+    Agent --> RAG
     CLI --> Ingest
 
     RAG -.-> IRepo

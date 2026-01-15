@@ -1,5 +1,5 @@
 import logging
-from typing import AsyncIterator, List
+from typing import List
 
 from src.core.interfaces.embedder import IEmbedder
 from src.core.interfaces.llm import ILLMProvider
@@ -87,15 +87,22 @@ class RAGService:
 
         return final_results
 
-    async def answer(
-        self, query: str, system_prompt: str, limit: int = 5
-    ) -> AsyncIterator[str] | str:
-        """Find relevant info and generate an answer."""
+    async def answer(self, query: str, system_prompt: str, limit: int = 5) -> tuple:
+        """Find relevant info and generate an answer.
+
+        Returns:
+            Tuple of (response, matches, search_query) where response is
+            AsyncIterator[str] | str
+        """
         matches, search_query = await self.search(query, limit=limit)
 
         if not matches:
             logger.warning(f"No documents found for search query: {search_query}")
-            return "No encontré información relevante en la base de conocimientos."
+            return (
+                "No encontré información relevante en la base de conocimientos.",
+                [],
+                search_query,
+            )
 
         context = "\n".join(
             [
@@ -105,4 +112,7 @@ class RAGService:
         )
 
         user_prompt = f"Contexto:\n{context}\n\nPregunta: {query}"
-        return await self.llm.generate_response(system_prompt, user_prompt, stream=True)
+        response = await self.llm.generate_response(
+            system_prompt, user_prompt, stream=True
+        )
+        return response, matches, search_query

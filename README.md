@@ -16,7 +16,7 @@ Este proyecto implementa una arquitectura desacoplada donde la lógica de negoci
 ### Estructura de Capas
 
 1.  **Domain (Core)**: Schemas puros (`Document`, `Chunk`) e interfaces abstractas (`IRepository`, `ILLMProvider`).
-2.  **Application (Services)**: Orquestación del flujo RAG e ingesta de datos.
+2.  **Application (Services)**: `AgentService` (punto de entrada agéntico), `RAGService` (búsqueda híbrida), `IngestService` (ingesta).
 3.  **Infrastructure**: Implementaciones concretas (actualmente incluye **Supabase** y **OpenAI**).
 4.  **Endpoints**: Interfaz de usuario vía CLI (Rich).
 
@@ -33,6 +33,7 @@ flowchart TB
     end
 
     subgraph Services["Application Layer"]
+        Agent[AgentService]
         RAG[RAGService]
         Ingest[IngestService]
     end
@@ -62,7 +63,8 @@ flowchart TB
     end
 
     User --> CLI
-    CLI --> RAG
+    CLI --> Agent
+    Agent --> RAG
     CLI --> Ingest
 
     RAG -.-> IRepo
@@ -98,7 +100,7 @@ src/
 │   ├── schemas/        # Modelos base: Document, Chunk, SearchMatch
 │   ├── dtos/           # Objetos de transferencia de datos
 │   └── interfaces/     # Contratos abstractos (IRepository, ILLMProvider)
-├── services/           # Lógica de negocio (RAG, Ingestión)
+├── services/           # Lógica de negocio (Agent, RAG, Ingestión)
 ├── infrastructure/     # Implementaciones concretas de proveedores (Supabase, OpenAI)
 └── endpoints/          # Adaptadores de entrada (CLI)
 ```

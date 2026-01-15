@@ -68,3 +68,27 @@ def bootstrap_ingest_service() -> IngestService:
     )
 
     return IngestService(repository, embedder, chunker)
+
+
+def bootstrap_agent_service():
+    """Bootstrap the AgentService with all dependencies.
+
+    The AgentService wraps RAGService and decides when to search or respond directly.
+    """
+    from src.services.agent_service import AgentService
+
+    settings = load_settings()
+
+    # Get the RAG service (includes repository, llm, embedder)
+    rag_service = bootstrap_rag_service()
+
+    # Agent needs direct LLM access for decision making
+    from src.infrastructure.llm.openai_provider import OpenAILLMProvider
+
+    llm = OpenAILLMProvider(
+        api_key=settings.llm_api_key,
+        model=settings.llm_model,
+        base_url=settings.llm_base_url,
+    )
+
+    return AgentService(rag_service, llm, conservative=True)

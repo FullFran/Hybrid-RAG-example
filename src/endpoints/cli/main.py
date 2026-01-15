@@ -5,27 +5,28 @@ from rich.console import Console
 from rich.panel import Panel
 from rich.prompt import Prompt
 
-from src.bootstrap import bootstrap_rag_service
+from src.bootstrap import bootstrap_agent_service
 from src.core.prompts import MAIN_SYSTEM_PROMPT
 from src.settings import load_settings
 
-# Configure logging to be quiet by default (silence httpx and others)
-logging.basicConfig(level=logging.WARNING)
-for logger_name in ["src", "httpx", "openai"]:
-    logging.getLogger(logger_name).setLevel(logging.WARNING)
+# Configure logging - silence all debug output
+logging.basicConfig(level=logging.ERROR)
+for name in ["httpx", "httpcore", "hpack", "openai", "src"]:
+    logging.getLogger(name).setLevel(logging.ERROR)
 
 console = Console()
 
 
 async def main():
     settings = load_settings()
-    rag_service = bootstrap_rag_service()
+    agent = bootstrap_agent_service()
 
     console.print(
         Panel(
-            f"[bold blue]RAG Agent (Clean Architecture)[/bold blue]\n"
+            f"[bold blue]RAG Agent (ReAct Mode)[/bold blue]\n"
             f"LLM: [green]{settings.llm_model}[/green]\n"
-            f"DB: [green]{settings.db_type.capitalize()}[/green]",
+            f"DB: [green]{settings.db_type.capitalize()}[/green]\n"
+            f"Mode: [yellow]Conservative (busca si hay duda)[/yellow]",
             style="blue",
         )
     )
@@ -40,34 +41,31 @@ async def main():
             if not query:
                 continue
 
-            # --- Reasoning Flow ---
             with console.status(
-                "[bold blue]Analizando y buscando en la base de conocimientos...",
+                "[bold blue]El agente está decidiendo cómo responder...",
                 spinner="dots",
             ):
-                matches, search_query = await rag_service.search(query, limit=5)
+                # The agent decides whether to search or respond directly
+                result = await agent.chat(query, MAIN_SYSTEM_PROMPT, limit=5)
 
-            # Show the "thinking" result
-            if search_query.lower() != query.lower():
+            # --- Explainability: Show reasoning ---
+            if result.searched:
                 console.print(
-                    f"[dim]🔎 Buscando por: [italic]{search_query}[/italic][/dim]"
+                    "[dim]🤖 Decisión: [bold]BUSCAR[/bold] en la base de conocimientos[/dim]"
                 )
-
-            if not matches:
-                console.print(
-                    "[yellow]No se encontró información relevante para esta consulta. Respondiendo con conocimiento general...[/yellow]"
-                )
+                if result.search_query:
+                    console.print(
+                        f"[dim]🔎 Buscando por: [italic]{result.search_query}[/italic][/dim]"
+                    )
             else:
-                unique_docs = list(set([m.document_title for m in matches]))
                 console.print(
-                    f"[dim]🔍 Encontrados {len(matches)} fragmentos en: [italic]{', '.join(unique_docs)}[/italic][/dim]"
+                    "[dim]🤖 Decisión: Responder [bold]DIRECTAMENTE[/bold] (conocimiento general)[/dim]"
                 )
 
             console.print("[bold blue]Asistente:[/bold blue] ", end="")
 
             # --- Stream Response ---
-            response = await rag_service.answer(query, MAIN_SYSTEM_PROMPT)
-
+            response = result.response
             if isinstance(response, str):
                 console.print(response)
             else:
@@ -76,9 +74,12 @@ async def main():
                 console.print()
 
             # --- Show Sources ---
-            if matches:
+            if result.searched and result.matches:
                 sources_text = "\n".join(
-                    [f"• {m.document_title} ({m.document_source})" for m in matches[:3]]
+                    [
+                        f"• {m.document_title} ({m.document_source})"
+                        for m in result.matches[:3]
+                    ]
                 )
                 console.print(
                     Panel(
@@ -92,6 +93,9 @@ async def main():
             break
         except Exception as e:
             console.print(f"[red]Error: {e}[/red]")
+            import traceback
+
+            traceback.print_exc()
 
 
 if __name__ == "__main__":

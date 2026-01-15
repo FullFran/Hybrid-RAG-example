@@ -53,46 +53,44 @@ Implementaciones concretas de las interfaces de proveedores.
 
 ---
 
-## 3. Diagrama de Arquitectura (C4 Container)
+## 3. Diagrama de Arquitectura (Clean Design)
 
 ```mermaid
-C4Container
-    title Arquitectura Limpia y Desacoplada
+graph TD
+    User((Usuario))
+    User -- CLI --> CLI[CLI Adapter]
+    User -- REST --> WebAPI[API Adapter]
 
-    Container_Boundary(api_layer, "Interface Layer (Endpoints)") {
-        Component(cli, "CLI Adapter", "Rich/Click", "Punto de entrada por terminal")
-        Component(web_api, "API Adapter", "FastAPI", "Punto de entrada REST")
-    }
+    subgraph Capa_Aplicacion [Application Layer - Services]
+        RAG[RAG Service]
+        Ingest[Ingest Service]
+    end
 
-    Container_Boundary(app_layer, "Application Layer (Services)") {
-        Component(rag_service, "RAG Service", "Business Logic", "Orquesta recuperación y síntesis")
-        Component(ingest_service, "Ingest Service", "Business Logic", "Orquesta procesamiento de archivos")
-    }
+    subgraph Capa_Dominio [Domain Layer - Core]
+        Schemas[Entities / Schemas]
+        RepoI[(IRepository)]
+        LLMI[ILLMProvider]
+        EmbedI[IEmbedder]
+    end
 
-    Container_Boundary(domain_layer, "Domain Layer (Schemas & Interfaces)") {
-        Component(schemas, "Entities/Schemas", "Pydantic", "Modelos Document, Chunk, Match")
-        Component(repo_iface, "IRepository", "Interface", "Contrato para DB")
-        Component(llm_iface, "ILLMProvider", "Interface", "Contrato para LLM")
-        Component(embed_iface, "IEmbedder", "Interface", "Contrato para Embeddings")
-    }
+    subgraph Capa_Infraestructura [Infrastructure Layer - Providers]
+        Mongo[(MongoDB Repo)]
+        Postgres[(Postgres Repo)]
+        OpenAI_LLM[OpenAI LLM]
+        OpenAI_Emb[OpenAI Embedder]
+    end
 
-    Container_Boundary(infra_layer, "Infrastructure Layer (Providers)") {
-        Component(mongo_repo, "MongoDB Repo", "Motor", "Persistencia en Mongo")
-        Component(pg_repo, "Postgres Repo", "SQLAlchemy/pgvector", "Persistencia en Postgres")
-        Component(openai_llm, "OpenAI LLM", "Client", "Generación de texto")
-        Component(openai_emb, "OpenAI Embedder", "Client", "Vectores")
-    }
+    CLI -- usa --> RAG
+    WebAPI -- usa --> RAG
+    RAG -- busca --> RepoI
+    RAG -- genera --> LLMI
+    Ingest -- persiste --> RepoI
+    Ingest -- vectors --> EmbedI
 
-    Rel(cli, rag_service, "Usa")
-    Rel(rag_service, repo_iface, "Busca vía")
-    Rel(rag_service, llm_iface, "Genera vía")
-    Rel(ingest_service, repo_iface, "Persiste vía")
-    Rel(ingest_service, embed_iface, "Crea vectores vía")
-
-    Rel_D(repo_iface, mongo_repo, "Implementado por")
-    Rel_D(repo_iface, pg_repo, "Implementado por")
-    Rel_D(llm_iface, openai_llm, "Implementado por")
-    Rel_D(embed_iface, openai_emb, "Implementado por")
+    RepoI -.-> Mongo
+    RepoI -.-> Postgres
+    LLMI -.-> OpenAI_LLM
+    EmbedI -.-> OpenAI_Emb
 ```
 
 ---

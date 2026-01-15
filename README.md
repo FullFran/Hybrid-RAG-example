@@ -24,34 +24,35 @@ Este proyecto implementa una arquitectura desacoplada donde la lógica de negoci
 
 ### Diagrama de Arquitectura (C4)
 
+### Diagrama de Arquitectura
+
 ```mermaid
-C4Container
-    title Arquitectura Limpia y Desacoplada
+graph TD
+    User((Usuario)) -- CLI --> CLI[CLI Adapter]
 
-    Container_Boundary(api_layer, "Interface Layer (Endpoints)") {
-        Component(cli, "CLI Adapter", "Rich/Click", "Punto de entrada por terminal")
-    }
+    subgraph Capa_Aplicacion [Application Layer]
+        RAG[RAG Service]
+        Ingest[Ingest Service]
+    end
 
-    Container_Boundary(app_layer, "Application Layer (Services)") {
-        Component(rag_service, "RAG Service", "Logic", "Orquesta recuperación y síntesis")
-        Component(ingest_service, "Ingest Service", "Logic", "Orquesta procesamiento de archivos")
-    }
+    subgraph Capa_Dominio [Domain Layer]
+        Schemas[Entities / Schemas]
+        Interfaces[Interfaces / Contratos]
+    end
 
-    Container_Boundary(domain_layer, "Domain Layer (Core)") {
-        Component(schemas, "Entities/Schemas", "Pydantic", "Modelos Document, Chunk, Match")
-        Component(interfaces, "Interfaces", "ABC", "Contratos para DB, LLM y Embedder")
-    }
+    subgraph Capa_Infraestructura [Infrastructure Layer]
+        Supabase[(Supabase Repo)]
+        OpenAI_LLM[OpenAI LLM]
+        OpenAI_Emb[OpenAI Embedder]
+    end
 
-    Container_Boundary(infra_layer, "Infrastructure Layer (Providers)") {
-        Component(supabase_repo, "Supabase Repo", "PostgreSQL", "Persistencia vectorial")
-        Component(openai_llm, "OpenAI LLM", "Provider", "Generación de texto")
-        Component(openai_emb, "OpenAI Embedder", "Provider", "Vectores")
-    }
-
-    Rel(cli, rag_service, "Usa")
-    Rel_D(rag_service, interfaces, "Interactúa vía")
-    Rel_D(interfaces, supabase_repo, "Implementado por")
-    Rel_D(interfaces, openai_llm, "Implementado por")
+    CLI -- usa --> RAG
+    CLI -- usa --> Ingest
+    RAG -- interactúa --> Interfaces
+    Ingest -- interactúa --> Interfaces
+    Interfaces -.-> Supabase
+    Interfaces -.-> OpenAI_LLM
+    Interfaces -.-> OpenAI_Emb
 ```
 
 ---

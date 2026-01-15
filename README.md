@@ -22,46 +22,70 @@ Este proyecto implementa una arquitectura desacoplada donde la lógica de negoci
 
 ---
 
-### Diagrama de Arquitectura (C4)
-
-### Diagrama de Arquitectura (Full Clean Detail)
+### Diagrama de Arquitectura (C4 Clean Design)
 
 ```mermaid
-graph TD
+flowchart TB
     User((Usuario))
-    User -- CLI --> CLI[CLI Adapter]
-    User -- REST --> WebAPI[API Adapter]
 
-    subgraph Capa_Aplicacion [Application Layer - Services]
-        RAG[RAG Service]
-        Ingest[Ingest Service]
+    subgraph Endpoints["Endpoints Layer"]
+        CLI[CLI Rich]
     end
 
-    subgraph Capa_Dominio [Domain Layer - Core]
-        Schemas[Entities / Schemas]
-        RepoI[(IRepository)]
-        LLMI[ILLMProvider]
-        EmbedI[IEmbedder]
+    subgraph Services["Application Layer"]
+        RAG[RAGService]
+        Ingest[IngestService]
     end
 
-    subgraph Capa_Infraestructura [Infrastructure Layer - Providers]
-        Mongo[(MongoDB Repo)]
-        Postgres[(Postgres Repo)]
-        OpenAI_LLM[OpenAI LLM]
-        OpenAI_Emb[OpenAI Embedder]
+    subgraph Core["Domain Layer - Interfaces"]
+        direction LR
+        IRepo([IRepository])
+        ILLM([ILLMProvider])
+        IEmb([IEmbedder])
     end
 
-    CLI -- usa --> RAG
-    WebAPI -- usa --> RAG
-    RAG -- busca --> RepoI
-    RAG -- genera --> LLMI
-    Ingest -- persiste --> RepoI
-    Ingest -- vectors --> EmbedI
+    subgraph Infra["Infrastructure Layer"]
+        direction TB
+        subgraph DBs["Database Providers"]
+            Mongo[(MongoRepository)]
+            Supa[(SupabaseRepository)]
+        end
+        subgraph AI["AI Providers"]
+            OAILLM[OpenAIProvider]
+            OAIEmb[OpenAIEmbedder]
+        end
+    end
 
-    RepoI -.-> Mongo
-    RepoI -.-> Postgres
-    LLMI -.-> OpenAI_LLM
-    EmbedI -.-> OpenAI_Emb
+    subgraph Ingestion["Ingestion Module"]
+        Chunker[chunker.py]
+        Embedder[embedder.py]
+    end
+
+    User --> CLI
+    CLI --> RAG
+    CLI --> Ingest
+
+    RAG -.-> IRepo
+    RAG -.-> ILLM
+    Ingest -.-> IRepo
+    Ingest -.-> IEmb
+
+    IRepo -.-> Mongo
+    IRepo -.-> Supa
+    ILLM -.-> OAILLM
+    IEmb -.-> OAIEmb
+
+    Ingest --> Chunker
+    Ingest --> Embedder
+
+    %% Layer styling
+    style Endpoints fill:#2d3436,stroke:#636e72,color:#dfe6e9
+    style Services fill:#0984e3,stroke:#74b9ff,color:#fff
+    style Core fill:#6c5ce7,stroke:#a29bfe,color:#fff
+    style Infra fill:#00b894,stroke:#55efc4,color:#fff
+    style Ingestion fill:#fdcb6e,stroke:#f39c12,color:#2d3436
+    style DBs fill:#00cec9,stroke:#81ecec,color:#2d3436
+    style AI fill:#e17055,stroke:#fab1a0,color:#fff
 ```
 
 ---

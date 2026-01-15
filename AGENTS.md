@@ -20,6 +20,7 @@ Welcome, Agent. This file defines your role and interaction style within this re
 | ---------------------- | --------------------- | ----------------------------------------------------------------------------------------------- |
 | `docs-standard`        | Tech writing standard | [.agent/skills/docs-standard/SKILL.md](.agent/skills/docs-standard/SKILL.md)                    |
 | `skill-creator`        | Bootstrap new skills  | [.agent/skills/skill-creator/SKILL.md](.agent/skills/skill-creator/SKILL.md)                    |
+| `mermaid-diagrams`     | Architecture diagrams | [.agent/skills/mermaid-diagrams/SKILL.md](.agent/skills/mermaid-diagrams/SKILL.md)              |
 | `supabase` / `mongodb` | DB-specific RAG logic | [Skills Folder](file:///home/franblakia/blakia/blakiaxhagalink/Hybrid-RAG-Agent/.agent/skills/) |
 
 ## Behavior Triggers

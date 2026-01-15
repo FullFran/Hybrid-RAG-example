@@ -24,35 +24,44 @@ Este proyecto implementa una arquitectura desacoplada donde la lógica de negoci
 
 ### Diagrama de Arquitectura (C4)
 
-### Diagrama de Arquitectura
+### Diagrama de Arquitectura (Full Clean Detail)
 
 ```mermaid
 graph TD
-    User((Usuario)) -- CLI --> CLI[CLI Adapter]
+    User((Usuario))
+    User -- CLI --> CLI[CLI Adapter]
+    User -- REST --> WebAPI[API Adapter]
 
-    subgraph Capa_Aplicacion [Application Layer]
+    subgraph Capa_Aplicacion [Application Layer - Services]
         RAG[RAG Service]
         Ingest[Ingest Service]
     end
 
-    subgraph Capa_Dominio [Domain Layer]
+    subgraph Capa_Dominio [Domain Layer - Core]
         Schemas[Entities / Schemas]
-        Interfaces[Interfaces / Contratos]
+        RepoI[(IRepository)]
+        LLMI[ILLMProvider]
+        EmbedI[IEmbedder]
     end
 
-    subgraph Capa_Infraestructura [Infrastructure Layer]
-        Supabase[(Supabase Repo)]
+    subgraph Capa_Infraestructura [Infrastructure Layer - Providers]
+        Mongo[(MongoDB Repo)]
+        Postgres[(Postgres Repo)]
         OpenAI_LLM[OpenAI LLM]
         OpenAI_Emb[OpenAI Embedder]
     end
 
     CLI -- usa --> RAG
-    CLI -- usa --> Ingest
-    RAG -- interactúa --> Interfaces
-    Ingest -- interactúa --> Interfaces
-    Interfaces -.-> Supabase
-    Interfaces -.-> OpenAI_LLM
-    Interfaces -.-> OpenAI_Emb
+    WebAPI -- usa --> RAG
+    RAG -- busca --> RepoI
+    RAG -- genera --> LLMI
+    Ingest -- persiste --> RepoI
+    Ingest -- vectors --> EmbedI
+
+    RepoI -.-> Mongo
+    RepoI -.-> Postgres
+    LLMI -.-> OpenAI_LLM
+    EmbedI -.-> OpenAI_Emb
 ```
 
 ---

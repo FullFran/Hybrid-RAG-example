@@ -1,47 +1,28 @@
-# Repository Guidelines
+# Agent Culture & Behavior Guide
 
-## Overview
+Welcome, Agent. This file defines your role and interaction style within this repository.
 
-This repository contains an AI-assisted programming framework designed to optimize the collaboration between human developers and AI agents.
+## Core Mandates
 
-## Core Principles
+1.  **Modularity First**: Favor modular skills in `.agent/skills/` over monolithic scripts.
+2.  **Context Hygiene**: Refer to `.agent/rules/docs-culture.md` for documentation standards. Don't clutter the codebase with redundant docstrings.
+3.  **Proactive Skill Loading**: Check the `Available Skills` table below and load tools as soon as a relevant task is identified.
 
-1. **Machine-Readable Documentation**: Priority is given to structured `.md` files that agents can easily parse (max 500 lines per file).
-2. **Modular Architecture**: Use nested `AGENTS.md` in subdirectories for granular context.
-3. **Skill-Based Competence**: Capabilities are organized into modular "skills" following the `agentskills.io` standard.
-4. **Auto-Invocation**: Agents are explicitly instructed on when to load specific skills via triggers.
+## Interaction Style
 
-## Project Structure
+- **Conciseness**: Avoid verbose explanations. Use markdown artifacts for complex plans.
+- **Directness**: If a command is safe (e.g., `git status`, `ls`, `pytest`), run it proactively.
+- **Validation**: Always verify changes by running relevant scripts or checking directory structures.
 
-- `docs/`: Technical documentation and research.
-- `.agent/`: Antigravity-specific configuration.
-  - `skills/`: Reusable agent competencies.
-  - `rules/`: Project behavioral guidelines.
-  - `workflows/`: Automated task sequences.
-- `scripts/`: Tooling for framework setup and maintenance.
+## Essential Skills
 
-## Available Skills
+| Skill                  | Purpose               | URL                                                                                             |
+| ---------------------- | --------------------- | ----------------------------------------------------------------------------------------------- |
+| `docs-standard`        | Tech writing standard | [.agent/skills/docs-standard/SKILL.md](.agent/skills/docs-standard/SKILL.md)                    |
+| `skill-creator`        | Bootstrap new skills  | [.agent/skills/skill-creator/SKILL.md](.agent/skills/skill-creator/SKILL.md)                    |
+| `supabase` / `mongodb` | DB-specific RAG logic | [Skills Folder](file:///home/franblakia/blakia/blakiaxhagalink/Hybrid-RAG-Agent/.agent/skills/) |
 
-| Skill | Description | URL |
-|-------|-------------|-----|
-| `docling` | Expert guidance on document processing with Docling and audio transcription with Whisper. | [.agent/skills/docling/SKILL.md](.agent/skills/docling/SKILL.md) |
-| `docs-standard` | Standard for creating technical documentation in this repository. | [.agent/skills/docs-standard/SKILL.md](.agent/skills/docs-standard/SKILL.md) |
-| `mongodb` | Expert guidance on MongoDB implementation for RAG, including aggregation pipelines and search patterns. | [.agent/skills/mongodb/SKILL.md](.agent/skills/mongodb/SKILL.md) |
-| `pydantic-ai` | Expert guidance on building agents and tools with Pydantic AI. | [.agent/skills/pydantic-ai/SKILL.md](.agent/skills/pydantic-ai/SKILL.md) |
-| `skill-creator` | Create and initialize new Antigravity Skills following the project standard. | [.agent/skills/skill-creator/SKILL.md](.agent/skills/skill-creator/SKILL.md) |
-| `supabase` | Expert guidance on Supabase/PostgreSQL implementation for RAG, including pgvector semantic search and full-text search. | [.agent/skills/supabase/SKILL.md](.agent/skills/supabase/SKILL.md) |
-| `workflow-creator` |  | [.agent/skills/workflow-creator/SKILL.md](.agent/skills/workflow-creator/SKILL.md) |
-## Auto-invoke Rules
+## Behavior Triggers
 
-Cuando realices las siguientes tareas, DEBES cargar la skill correspondiente para asegurar el cumplimiento cultural:
-
-| Creación de nuevas skills | `skill-creator` | "Necesito crear una nueva habilidad" |
-| Creación de nuevos workflows | `workflow-creator` | "Necesito crear un nuevo workflow" |
-| Sincronización de metadatos | `scripts/sync-skills.sh` | "Actualiza el índice de skills" |
-| Documentación técnica | `docs-standard` | "Escribe un nuevo documento en docs/" |
-
-## Technical Stack
-
-- Environment: Linux / Bash
-- Standards: `AGENTS.md`, `agentskills.io`
-- Tools: Google Antigravity IDE
+- **RAG Implementation**: When modifying ingestion or retrieval, load `docling` and the relevant DB skill.
+- **Process Automation**: If you see a repetitive pattern, offer to create a workflow in `.agent/workflows/`.

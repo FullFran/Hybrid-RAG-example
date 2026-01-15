@@ -33,7 +33,7 @@ Objetos para mover datos entre capas, especialmente hacia fuera de los _Services
 
 Contiene la orquestación de la lógica de negocio. Utiliza interfaces (Abstracciones) para interactuar con externos.
 
-- `RAGService`: Orquesta la búsqueda y la generación.
+- `RAGService`: Orquesta la búsqueda y la generación. Ver [detalle de implementación](file:///home/franblakia/blakia/blakiaxhagalink/Hybrid-RAG-Agent/docs/rag_service_detail.md).
 - `IngestionService`: Orquesta la conversión, el chunking y el guardado.
 
 ### D. Endpoints (Interface Adapter Layer)

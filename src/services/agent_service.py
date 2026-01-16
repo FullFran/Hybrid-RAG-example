@@ -10,7 +10,7 @@ from dataclasses import dataclass, field
 from typing import AsyncIterator, List
 
 from src.core.interfaces.llm import ILLMProvider
-from src.core.schemas.search import SearchMatch
+from src.core.schemas.search import SearchHit
 from src.services.rag_service import RAGService
 
 logger = logging.getLogger(__name__)
@@ -23,7 +23,7 @@ class AgentResponse:
     response: AsyncIterator[str] | str
     searched: bool = False
     search_query: str | None = None
-    matches: List[SearchMatch] = field(default_factory=list)
+    matches: List[SearchHit] = field(default_factory=list)
 
 
 class AgentService:
@@ -110,16 +110,20 @@ Responde SOLO: SEARCH o DIRECT"""
         should_search, search_query = await self._decide(query)
 
         if should_search:
-            # 2a. Use RAG to search and respond
-            logger.info(f"Agent decided to SEARCH. Query: '{search_query or query}'")
-            response, matches, reformulated = await self.rag.answer(
-                search_query or query, system_prompt, limit=limit
+            # 2a. Reformulate query for better search results
+            optimized_query = await self._reformulate_query(search_query or query)
+            logger.info(
+                f"Agent decided to SEARCH. Optimized query: '{optimized_query}'"
+            )
+
+            response, matches, _ = await self.rag.answer(
+                optimized_query, system_prompt, limit=limit
             )
 
             return AgentResponse(
                 response=response,
                 searched=True,
-                search_query=reformulated,
+                search_query=optimized_query,
                 matches=matches,
             )
         else:
@@ -214,3 +218,32 @@ Responde SOLO: SEARCH o DIRECT"""
         else:
             # Anything else (including SEARCH or ambiguous) -> search
             return True, None
+
+    async def _reformulate_query(self, query: str) -> str:
+        """Transform a conversational query into a search-optimized query.
+
+        This is an agentic reasoning step that extracts key concepts and
+        removes conversational noise to improve search recall.
+
+        Args:
+            query: The user's original or decision-provided query.
+
+        Returns:
+            An optimized query string for search.
+        """
+        system_prompt = (
+            "Eres un experto en recuperación de información. Tu tarea es convertir una "
+            "pregunta conversacional en una consulta de búsqueda optimizada (keywords y conceptos clave).\n"
+            "Reglas:\n"
+            "- Elimina saludos, cortesías y relleno.\n"
+            "- Extrae las entidades y conceptos principales.\n"
+            "- Si la pregunta es corta y directa, mantenla igual.\n"
+            "- RESPONDE ÚNICAMENTE CON LA CONSULTA OPTIMIZADA, SIN EXPLICACIONES."
+        )
+
+        reformulated = await self.llm.generate_response(
+            system_prompt, query, stream=False
+        )
+        result = reformulated.strip().strip('"').strip("'")
+        logger.debug(f"Query reformulated: '{query}' -> '{result}'")
+        return result

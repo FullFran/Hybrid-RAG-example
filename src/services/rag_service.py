@@ -1,10 +1,10 @@
 import logging
-from typing import List
+from typing import AsyncIterator, List
 
 from src.core.interfaces.embedder import IEmbedder
 from src.core.interfaces.llm import ILLMProvider
 from src.core.interfaces.repository import IRepository
-from src.core.schemas.search import SearchMatch
+from src.core.schemas.search import SearchHit, SearchType
 
 logger = logging.getLogger(__name__)
 
@@ -18,85 +18,100 @@ class RAGService:
         self.embedder = embedder
 
     async def search(
-        self, query: str, limit: int = 5, search_type: str = "hybrid"
-    ) -> List[SearchMatch]:
-        """Orchestrate search across multiple methods and merge results."""
-        if search_type == "semantic":
+        self, query: str, limit: int = 5, search_type: SearchType = SearchType.HYBRID
+    ) -> tuple[List[SearchHit], str]:
+        """Orchestrate search across multiple methods and merge results.
+
+        Args:
+            query: Search query (should be pre-optimized by caller).
+            limit: Maximum number of results to return.
+            search_type: Type of search to perform.
+
+        Returns:
+            Tuple of (hits, query_used).
+        """
+        if search_type == SearchType.SEMANTIC:
             vector = await self.embedder.get_embedding(query)
-            return await self.repository.semantic_search(vector, limit), query
-        elif search_type == "text":
-            return await self.repository.text_search(query, limit), query
-        else:  # hybrid (manual RRF)
-            logger.debug(f"Original query: {query}")
+            results = await self.repository.semantic_search(vector, limit)
+            return results, query
+        elif search_type == SearchType.TEXT:
+            results = await self.repository.text_search(query, limit)
+            return results, query
+        else:  # hybrid (RRF)
+            logger.debug(f"Hybrid search with query: {query}")
 
-            # --- Agentic Step: Query Reformulation ---
-            search_query = await self._reformulate_query(query)
-            logger.debug(f"Reformulated query for search: {search_query}")
-
-            vector = await self.embedder.get_embedding(search_query)
+            vector = await self.embedder.get_embedding(query)
             semantic_results = await self.repository.semantic_search(vector, limit * 2)
-            text_results = await self.repository.text_search(search_query, limit * 2)
-            merged = self._reciprocal_rank_fusion([semantic_results, text_results])
+            text_results = await self.repository.text_search(query, limit * 2)
+            merged = self._reciprocal_rank_fusion(semantic_results, text_results)
             logger.debug(f"Hybrid search merged into {len(merged)} results")
-            return merged[:limit], search_query
-
-    async def _reformulate_query(self, query: str) -> str:
-        """Use LLM to transform a conversational query into a search-optimized query."""
-        system_prompt = (
-            "Eres un experto en recuperación de información. Tu tarea es convertir una "
-            "pregunta conversacional en una consulta de búsqueda optimizada (keywords y conceptos clave).\n"
-            "Reglas:\n"
-            "- Elimina saludos, cortesías y relleno.\n"
-            "- Extrae las entidades y conceptos principales.\n"
-            "- Si la pregunta es corta y directa, mantenla igual.\n"
-            "- RESPONDE ÚNICAMENTE CON LA CONSULTA OPTIMIZADA, SIN EXPLICACIONES."
-        )
-
-        # We use a non-streaming call for this internal reasoning step
-        reformulated = await self.llm.generate_response(
-            system_prompt, query, stream=False
-        )
-        # Clean up in case the LLM added quotes or extra spaces
-        return reformulated.strip().strip('"').strip("'")
+            return merged[:limit], query
 
     def _reciprocal_rank_fusion(
-        self, result_sets: List[List[SearchMatch]], k: int = 60
-    ) -> List[SearchMatch]:
-        """Manual implementation of RRF to merge search results."""
-        scores = {}  # (chunk_id) -> score
-        matches = {}  # (chunk_id) -> SearchMatch
+        self,
+        semantic_hits: List[SearchHit],
+        text_hits: List[SearchHit],
+        k: int = 60,
+    ) -> List[SearchHit]:
+        """Merge search results using Reciprocal Rank Fusion.
 
-        for result_set in result_sets:
-            for rank, match in enumerate(result_set):
-                chunk_id = match.chunk.id
-                score = 1.0 / (k + rank)
-                if chunk_id in scores:
-                    scores[chunk_id] += score
-                else:
-                    scores[chunk_id] = score
-                    matches[chunk_id] = match
+        Creates NEW SearchHit objects with fusion_score set.
+        Preserves original semantic_score and text_score from each channel.
+        """
+        rrf_scores: dict[str, float] = {}
+        hits_by_id: dict[str, SearchHit] = {}
+        semantic_scores: dict[str, float] = {}
+        text_scores: dict[str, float] = {}
 
-        # Sort by score
-        sorted_ids = sorted(scores.keys(), key=lambda x: scores[x], reverse=True)
+        # Process semantic results
+        for rank, hit in enumerate(semantic_hits):
+            chunk_id = hit.chunk.id
+            rrf_scores[chunk_id] = rrf_scores.get(chunk_id, 0) + 1.0 / (k + rank)
+            hits_by_id[chunk_id] = hit
+            if hit.semantic_score is not None:
+                semantic_scores[chunk_id] = hit.semantic_score
 
-        final_results = []
-        for cid in sorted_ids:
-            match = matches[cid]
-            match.similarity = scores[cid]  # Update similarity with RRF score
-            final_results.append(match)
+        # Process text results
+        for rank, hit in enumerate(text_hits):
+            chunk_id = hit.chunk.id
+            rrf_scores[chunk_id] = rrf_scores.get(chunk_id, 0) + 1.0 / (k + rank)
+            if chunk_id not in hits_by_id:
+                hits_by_id[chunk_id] = hit
+            if hit.text_score is not None:
+                text_scores[chunk_id] = hit.text_score
 
-        return final_results
+        # Sort by RRF score
+        sorted_ids = sorted(
+            rrf_scores.keys(), key=lambda x: rrf_scores[x], reverse=True
+        )
 
-    async def answer(self, query: str, system_prompt: str, limit: int = 5) -> tuple:
+        # Create NEW SearchHit objects with fusion_score (no mutation!)
+        fused_hits = []
+        for chunk_id in sorted_ids:
+            original = hits_by_id[chunk_id]
+            fused_hit = SearchHit(
+                chunk=original.chunk,
+                document_title=original.document_title,
+                document_source=original.document_source,
+                semantic_score=semantic_scores.get(chunk_id),
+                text_score=text_scores.get(chunk_id),
+                fusion_score=rrf_scores[chunk_id],
+            )
+            fused_hits.append(fused_hit)
+
+        return fused_hits
+
+    async def answer(
+        self, query: str, system_prompt: str, limit: int = 5
+    ) -> tuple[AsyncIterator[str] | str, List[SearchHit], str]:
         """Find relevant info and generate an answer.
 
         Returns:
-            Tuple of (response, matches, search_query) where response is
-            AsyncIterator[str] | str
+            Tuple of (response_stream, hits, search_query).
         """
-        matches, search_query = await self.search(query, limit=limit)
+        hits, search_query = await self.search(query, limit=limit)
 
-        if not matches:
+        if not hits:
             logger.warning(f"No documents found for search query: {search_query}")
             return (
                 "No encontré información relevante en la base de conocimientos.",
@@ -104,10 +119,11 @@ class RAGService:
                 search_query,
             )
 
+        # Build context (will be replaced by ContextBuilder later)
         context = "\n".join(
             [
-                f"--- Documento: {m.document_title} ---\n{m.chunk.content}"
-                for m in matches
+                f"--- Documento: {h.document_title} (score: {h.best_score:.3f}) ---\n{h.chunk.content}"
+                for h in hits
             ]
         )
 
@@ -115,4 +131,4 @@ class RAGService:
         response = await self.llm.generate_response(
             system_prompt, user_prompt, stream=True
         )
-        return response, matches, search_query
+        return response, hits, search_query

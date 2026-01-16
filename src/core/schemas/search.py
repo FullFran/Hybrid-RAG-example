@@ -37,13 +37,20 @@ class SearchHit(BaseModel):
     fusion_score: float | None = None
 
     @property
-    def best_score(self) -> float:
-        """Return the most relevant score available.
+    def display_score(self) -> float:
+        """Return the most relevant score available for display purposes.
 
         Priority: fusion > semantic > text > 0.0
+        Note: Use explicit score fields for business logic decision making.
         """
-        return self.fusion_score or self.semantic_score or self.text_score or 0.0
+        if self.fusion_score is not None:
+            return self.fusion_score
+        if self.semantic_score is not None:
+            return self.semantic_score
+        if self.text_score is not None:
+            return self.text_score
+        return 0.0
 
 
-# Backwards compatibility alias (deprecated)
+# DEPRECATED: Use SearchHit instead. Kept for minimal backwards compatibility.
 SearchMatch = SearchHit

@@ -86,7 +86,7 @@ class ContextBuilder:
             # Format chunk
             chunk_text = (
                 f"--- {hit.document_title} (chunk {hit.chunk.chunk_index}, "
-                f"score: {hit.best_score:.3f}) ---\n{hit.chunk.content}"
+                f"score: {hit.display_score:.3f}) ---\n{hit.chunk.content}"
             )
 
             # Check character limit
@@ -103,7 +103,7 @@ class ContextBuilder:
                     document_title=hit.document_title,
                     document_source=hit.document_source,
                     chunk_index=hit.chunk.chunk_index,
-                    score=hit.best_score,
+                    score=hit.display_score,
                 )
             )
 

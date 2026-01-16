@@ -123,7 +123,7 @@ class SupabaseRepository(IRepository):
                 id=str(item["id"]),
                 document_id=str(item["document_id"]),
                 content=item["content"],
-                chunk_index=item.get("chunk_index", 0),
+                chunk_index=item["chunk_index"],
                 metadata=item.get("metadata", {}),
             )
             hits.append(
@@ -131,16 +131,18 @@ class SupabaseRepository(IRepository):
                     chunk=chunk,
                     document_title=item["doc_title"],
                     document_source=item["doc_source"],
-                    semantic_score=item["similarity"],  # Explicit semantic score
+                    semantic_score=item["semantic_score"],
                 )
             )
         return hits
 
     async def text_search(self, query: str, limit: int) -> List[SearchHit]:
-        """Perform full-text search using PostgreSQL RPC with ts_rank.
+        """Perform full-text search using PostgreSQL RPC.
 
         Returns:
             List of SearchHit with text_score populated.
+        Raises:
+            SearchError: If database query fails.
         """
         rpc_params = {
             "query_text": query,
@@ -165,29 +167,21 @@ class SupabaseRepository(IRepository):
                 document_id=str(item["document_id"]),
                 content=item["content"],
                 metadata=item.get("metadata", {}),
-                chunk_index=item.get("chunk_index", 0),  # Will be fixed with RPC update
+                chunk_index=item[
+                    "chunk_index"
+                ],  # Strict: requires migrations to be applied
             )
             hits.append(
                 SearchHit(
                     chunk=chunk,
-                    document_title=item.get("doc_title", "Unknown"),
-                    document_source=item.get("doc_source", "Unknown"),
-                    text_score=item["similarity"],  # Explicit text score (ts_rank)
+                    document_title=item[
+                        "doc_title"
+                    ],  # Strict: Fail early if data is bad
+                    document_source=item["doc_source"],
+                    text_score=item["text_score"],  # RENAMED for consistency
                 )
             )
         return hits
-
-    async def clean_all(self) -> None:
-        """Clear all documents and chunks.
-
-        Cascading delete handles chunks if set up in Postgres.
-        """
-        await asyncio.to_thread(
-            lambda: self.client.table("documents")
-            .delete()
-            .neq("id", "00000000-0000-0000-0000-000000000000")
-            .execute()
-        )
 
     async def close(self) -> None:
         """Close the repository connection.

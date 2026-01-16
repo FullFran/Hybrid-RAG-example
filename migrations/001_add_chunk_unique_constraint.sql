@@ -9,15 +9,18 @@ WHERE a.id < b.id
   AND a.document_id = b.document_id
   AND a.chunk_index = b.chunk_index;
 
--- Step 2: Add unique constraint
-ALTER TABLE chunks
-ADD CONSTRAINT chunks_document_id_chunk_index_unique 
-UNIQUE (document_id, chunk_index);
+-- Step 2: Add unique index (Review Point #4)
+-- This ensures upsert works correctly
+CREATE UNIQUE INDEX IF NOT EXISTS chunks_document_id_chunk_index_idx 
+ON chunks (document_id, chunk_index);
 
--- Verify constraint was created
-SELECT 
-    conname AS constraint_name,
-    contype AS constraint_type
-FROM pg_constraint
-WHERE conrelid = 'chunks'::regclass
-  AND conname LIKE '%unique%';
+-- Step 3: Add explicit embedding version columns (if you go serious)
+-- ALTER TABLE chunks ADD COLUMN IF NOT EXISTS embedding_version TEXT DEFAULT 'text-embedding-3-small';
+
+-- Verify index was created
+SELECT
+    indexname AS index_name,
+    indexdef AS index_definition
+FROM pg_indexes
+WHERE tablename = 'chunks'
+  AND indexname LIKE '%unique%';

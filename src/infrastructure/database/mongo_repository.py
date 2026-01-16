@@ -8,7 +8,7 @@ from motor.motor_asyncio import AsyncIOMotorClient
 from src.core.interfaces.repository import IRepository
 from src.core.schemas.chunk import Chunk
 from src.core.schemas.document import Document
-from src.core.schemas.search import SearchMatch
+from src.core.schemas.search import SearchHit
 
 logger = logging.getLogger(__name__)
 
@@ -46,8 +46,9 @@ class MongoRepository(IRepository):
         await self.chunks.insert_many(chunk_dicts, ordered=False)
 
     async def semantic_search(
-        self, vector: List[float], limit: int, index_name: str = "vector_index"
-    ) -> List[SearchMatch]:
+        self, vector: List[float], limit: int, threshold: float | None = None
+    ) -> List[SearchHit]:
+        index_name = "vector_index"
         pipeline = [
             {
                 "$vectorSearch": {
@@ -83,7 +84,7 @@ class MongoRepository(IRepository):
         results = []
         async for doc in self.chunks.aggregate(pipeline):
             chunk = Chunk(
-                _id=str(doc["_id"]),
+                id=str(doc["_id"]),
                 document_id=str(doc["document_id"]),
                 content=doc["content"],
                 chunk_index=doc["chunk_index"],
@@ -91,18 +92,17 @@ class MongoRepository(IRepository):
                 created_at=doc.get("created_at", datetime.now()),
             )
             results.append(
-                SearchMatch(
+                SearchHit(
                     chunk=chunk,
-                    similarity=doc["similarity"],
                     document_title=doc["doc_title"],
                     document_source=doc["doc_source"],
+                    semantic_score=doc["similarity"],
                 )
             )
         return results
 
-    async def text_search(
-        self, query: str, limit: int, index_name: str = "text_index"
-    ) -> List[SearchMatch]:
+    async def text_search(self, query: str, limit: int) -> List[SearchHit]:
+        index_name = "text_index"
         pipeline = [
             {
                 "$search": {
@@ -148,18 +148,14 @@ class MongoRepository(IRepository):
                 created_at=doc.get("created_at", datetime.now()),
             )
             results.append(
-                SearchMatch(
+                SearchHit(
                     chunk=chunk,
-                    similarity=doc["similarity"],
                     document_title=doc["doc_title"],
                     document_source=doc["doc_source"],
+                    text_score=doc["similarity"],
                 )
             )
         return results
-
-    async def clean_all(self) -> None:
-        await self.chunks.delete_many({})
-        await self.documents.delete_many({})
 
     async def close(self):
         self.client.close()

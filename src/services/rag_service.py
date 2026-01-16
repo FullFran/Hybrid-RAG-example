@@ -122,7 +122,7 @@ class RAGService:
         # Build context (will be replaced by ContextBuilder later)
         context = "\n".join(
             [
-                f"--- Documento: {h.document_title} (score: {h.best_score:.3f}) ---\n{h.chunk.content}"
+                f"--- Documento: {h.document_title} (score: {h.display_score:.3f}) ---\n{h.chunk.content}"
                 for h in hits
             ]
         )

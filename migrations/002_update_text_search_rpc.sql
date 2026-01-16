@@ -18,7 +18,7 @@ RETURNS TABLE (
     content TEXT,
     chunk_index INTEGER,
     metadata JSONB,
-    similarity REAL,
+    text_score REAL, -- Renamed for consistency (Review Point #15)
     doc_title TEXT,
     doc_source TEXT
 )
@@ -35,13 +35,13 @@ BEGIN
         ts_rank(
             to_tsvector('spanish', c.content),
             plainto_tsquery('spanish', query_text)
-        )::REAL AS similarity,
+        )::REAL AS text_score,
         d.title AS doc_title,
         d.source AS doc_source
     FROM chunks c
     JOIN documents d ON c.document_id = d.id
     WHERE to_tsvector('spanish', c.content) @@ plainto_tsquery('spanish', query_text)
-    ORDER BY similarity DESC
+    ORDER BY text_score DESC
     LIMIT match_count;
 END;
 $$;

@@ -1,32 +1,32 @@
 # Hybrid RAG Agent - Clean Architecture
 
-Sistema RAG (Generación Aumentada por Recuperación) moderno y modular diseñado bajo principios de **Clean Architecture**. Este sistema permite la recuperación inteligente de documentos con total independencia de los proveedores de infraestructura (Base de Datos, LLM o Embeddings).
+Modern and modular RAG (Retrieval-Augmented Generation) system designed under **Clean Architecture** principles. This system enables intelligent document retrieval with total independence from infrastructure providers (Database, LLM, or Embeddings).
 
-## 🏛️ Arquitectura: Clean RAG Design
+## 🏛️ Architecture: Clean RAG Design
 
-Este proyecto implementa una arquitectura desacoplada donde la lógica de negocio reside en el núcleo, protegida de cambios en servicios externos.
+This project implements a decoupled architecture where business logic resides in the core, protected from changes in external services.
 
-### Principios de Diseño
+### Design Principles
 
-- **Independencia de Proveedores**: Intercambia fácilmente entre MongoDB, Supabase, PostgreSQL o cualquier otra DB implementando su interfaz.
-- **Abstracción de IA**: Soporte para múltiples proveedores de LLM y Embeddings (OpenAI, Anthropic, Local).
-- **Testabilidad**: Lógica de RAG verificable sin necesidad de conexiones externas.
-- **CLI-First**: Interfaz potente por terminal diseñada para flujo de trabajo técnico.
+-   **Provider Independence**: Easily switch between MongoDB, Supabase, PostgreSQL, or any other DB by implementing its interface.
+-   **AI Abstraction**: Support for multiple LLM and Embeddings providers (OpenAI, Anthropic, Local).
+-   **Testability**: RAG logic verifiable without external connections.
+-   **CLI-First**: Powerful terminal interface designed for technical workflows.
 
-### Estructura de Capas
+### Layer Structure
 
-1.  **Domain (Core)**: Schemas puros (`Document`, `Chunk`) e interfaces abstractas (`IRepository`, `ILLMProvider`).
-2.  **Application (Services)**: `AgentService` (punto de entrada agéntico), `RAGService` (búsqueda híbrida), `IngestService` (ingesta).
-3.  **Infrastructure**: Implementaciones concretas (actualmente incluye **Supabase** y **OpenAI**).
-4.  **Endpoints**: Interfaz de usuario vía CLI (Rich).
+1.  **Domain (Core)**: Pure schemas (`Document`, `Chunk`) and abstract interfaces (`IRepository`, `ILLMProvider`, `IParser`, `IChunker`).
+2.  **Application (Services)**: `AgentService` (agentic entry point), `RAGService` (hybrid search), `IngestService` (modular ingestion).
+3.  **Infrastructure**: Concrete implementations (currently includes **MongoDB**, **Supabase**, and **OpenAI**).
+4.  **Endpoints**: User interface via CLI (Rich).
 
 ---
 
-### Diagrama de Arquitectura (C4 Clean Design)
+### Architecture Diagram (C4 Clean Design)
 
 ```mermaid
 flowchart TB
-    User((Usuario))
+    User((User))
 
     subgraph Endpoints["Endpoints Layer"]
         CLI[CLI Rich]
@@ -43,6 +43,8 @@ flowchart TB
         IRepo([IRepository])
         ILLM([ILLMProvider])
         IEmb([IEmbedder])
+        IPar([IParser])
+        IChu([IChunker])
     end
 
     subgraph Infra["Infrastructure Layer"]
@@ -55,11 +57,10 @@ flowchart TB
             OAILLM[OpenAIProvider]
             OAIEmb[OpenAIEmbedder]
         end
-    end
-
-    subgraph Ingestion["Ingestion Module"]
-        Chunker[chunker.py]
-        Embedder[embedder.py]
+        subgraph Ingestion["Ingestion Implementation"]
+            DPar[DoclingParser]
+            DChu[DoclingChunker]
+        end
     end
 
     User --> CLI
@@ -71,47 +72,48 @@ flowchart TB
     RAG -.-> ILLM
     Ingest -.-> IRepo
     Ingest -.-> IEmb
+    Ingest -.-> IPar
+    Ingest -.-> IChu
 
     IRepo -.-> Mongo
     IRepo -.-> Supa
     ILLM -.-> OAILLM
     IEmb -.-> OAIEmb
-
-    Ingest --> Chunker
-    Ingest --> Embedder
+    IPar -.-> DPar
+    IChu -.-> DChu
 
     %% Layer styling
     style Endpoints fill:#2d3436,stroke:#636e72,color:#dfe6e9
     style Services fill:#0984e3,stroke:#74b9ff,color:#fff
     style Core fill:#6c5ce7,stroke:#a29bfe,color:#fff
     style Infra fill:#00b894,stroke:#55efc4,color:#fff
-    style Ingestion fill:#fdcb6e,stroke:#f39c12,color:#2d3436
     style DBs fill:#00cec9,stroke:#81ecec,color:#2d3436
     style AI fill:#e17055,stroke:#fab1a0,color:#fff
+    style Ingestion fill:#fdcb6e,stroke:#f39c12,color:#2d3436
 ```
 
 ---
 
-## 📂 Organización del Proyecto
+## 📂 Project Organization
 
 ```text
 src/
 ├── core/
-│   ├── schemas/        # Modelos base: Document, Chunk, SearchMatch
-│   ├── dtos/           # Objetos de transferencia de datos
-│   └── interfaces/     # Contratos abstractos (IRepository, ILLMProvider)
-├── services/           # Lógica de negocio (Agent, RAG, Ingestión)
-├── infrastructure/     # Implementaciones concretas de proveedores (Supabase, OpenAI)
-└── endpoints/          # Adaptadores de entrada (CLI)
+│   ├── schemas/        # Base models: Document, Chunk, SearchHit
+│   ├── dtos/           # Data Transfer Objects
+│   └── interfaces/     # Abstract contracts (IRepository, IParser, etc.)
+├── services/           # Business logic (Agent, RAG, Ingestion)
+├── infrastructure/     # Concrete provider implementations (Supabase, OpenAI, Docling)
+└── endpoints/          # Input adapters (CLI)
 ```
 
 ---
 
-## 🚀 Guía de Inicio Rápido
+## 🚀 Quick Start Guide
 
-### 1. Instalación
+### 1. Installation
 
-Requiere Python 3.10+ y [UV Package Manager](https://astral.sh/uv/).
+Requires Python 3.10+ and [UV Package Manager](https://astral.sh/uv/).
 
 ```bash
 git clone https://github.com/FullFran/Hybrid-RAG-example.git
@@ -119,26 +121,26 @@ cd Hybrid-RAG-example
 uv venv && uv sync
 ```
 
-### 2. Configuración
+### 2. Configuration
 
-Copia `.env.example` a `.env` y configura tus variables de entorno (Supabase URL/Key, OpenAI API Key, etc.).
+Copy `.env.example` to `.env` and set your environment variables (Supabase URL/Key, OpenAI API Key, etc.).
 
-### 3. Uso
+### 3. Usage
 
 ```bash
-# Ingestar documentos
+# Ingest documents
 uv run python -m src.endpoints.cli.ingest -d ./documents
 
-# Iniciar el chat inteligente
+# Start the intelligent chat
 uv run python -m src.endpoints.cli.main
 ```
 
 ---
 
-## 🛠️ Extensibilidad
+## 🛠️ Extensibility
 
-Gracias a la arquitectura limpia, añadir un nuevo proveedor de base de datos es tan simple como:
+Thanks to the clean architecture, adding a new database provider is as simple as:
 
-1. Crear una nueva clase en `src/infrastructure/database/`.
-2. Implementar la interfaz `IRepository`.
-3. Inyectarla en el servicio al iniciar la aplicación.
+1.  Create a new class in `src/infrastructure/database/`.
+2.  Implement the `IRepository` interface.
+3.  Inject it into the service during application bootstrap.

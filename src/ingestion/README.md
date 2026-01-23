@@ -1,58 +1,46 @@
-# Ingestión de Documentos: Embedder y Chunker
+# Document Ingestion (Modular & Decoupled)
 
-Este módulo se encarga de procesar documentos crudos, dividirlos en fragmentos inteligentes (chunking) y generar representaciones vectoriales (embeddings) para su posterior recuperación en el sistema RAG.
+This module has been redesigned under **Clean Architecture** principles to allow easy swapping of parsing, chunking, and embedding providers.
 
-## Componentes Actuales
+## 🏗️ Ingestion Architecture
 
-### 1. `chunker.py` (Docling HybridChunker)
+The ingestion flow is orchestrated by the `IngestService`, which now depends on abstract interfaces instead of concrete implementations:
 
-Utiliza **Docling** para realizar un particionado inteligente que:
+```mermaid
+graph LR
+    File[File] --> Parser[IParser]
+    Parser --> Markdown[Markdown + RawDoc]
+    Markdown --> Chunker[IChunker]
+    Chunker --> Chunks[Raw Chunks]
+    Chunks --> Embedder[IEmbedder]
+    Embedder --> VectorChunks[Vector Chunks]
+    VectorChunks --> Repo[IRepository]
+```
 
-- Respeta la estructura del documento (encabezados, tablas, párrafos).
-- Es consciente de los tokens (ajusta los trozos al límite del modelo de embedding).
-- **Estado Actual:** Ejecución **Local** mediante Transformers (`sentence-transformers/all-MiniLM-L6-v2`) para la tokenización. Depende de modelos locales para el análisis estructural.
+### 1. Interfaces (Domain Layer)
+Located in `src/core/interfaces/`:
+- **`IParser`**: Defines how to read a file. Allows switching Docling for LlamaParse, Unstructured.io, or a simple text parser.
+- **`IChunker`**: Defines how to split text. Allows using hybrid, sentence-based, or fixed-token strategies.
 
-### 2. `embedder.py` (OpenAI-Compatible API)
+### 2. Infrastructure Implementations
+Located in `src/infrastructure/ingestion/`:
+- **`DoclingParser`**: Robust implementation supporting PDF, Word, Excel, Markdown, and Audio transcription via Whisper.
+- **`DoclingChunker`**: Uses Docling's `HybridChunker` to maintain hierarchical coherence (headers, tables) and respect embedding model token limits.
 
-Genera los vectores de búsqueda para cada fragmento.
+## 🚀 How to Extend
 
-- **Estado Actual:** **Cloud-Ready**. Utiliza APIs externas (OpenAI o compatibles) para generar embeddings.
+### To use a new Parser (e.g., LlamaParse):
+1. Create `src/infrastructure/ingestion/llama_parser.py` implementing `IParser`.
+2. Update `src/bootstrap.py` to inject `LlamaParser` into the `IngestService`.
 
----
+### To use a new Chunker:
+1. Create your implementation of `IChunker`.
+2. Inject it via the bootstrap.
 
-## Alternativas Cloud (Escalabilidad y Rendimiento)
-
-Para despliegues en servidores cloud con recursos limitados (CPU/RAM) o para mejorar la precisión del parseo sin depender de modelos locales pesados, se recomiendan las siguientes alternativas:
-
-### A. Parseo y Chunking en la Nube
-
-Para evitar el uso de Transformers y modelos de visión locales:
-
-1.  **Docling Serve (API/Container):**
-    - Desplegar Docling como un microservicio independiente (Docker).
-    - Permite delegar el procesamiento a un servidor dedicado o usar el modo `api` para descripciones de imágenes mediante modelos externos.
-2.  **LlamaParse:**
-    - Servicio cloud especializado en la extracción de Markdown y tablas complejas de PDFs.
-    - Muy rápido y optimizado para RAG.
-3.  **Unstructured.io API:**
-    - Plataforma robusta que soporta multitud de formatos y ofrece una API gestionada para extraer texto y estructura.
-4.  **Servicios de Proveedores Cloud:**
-    - **Amazon Textract**, **Azure Document Intelligence** o **Google Document AI**. Ideales para documentos escaneados o formularios complejos.
-
-### B. Reemplazo de Modelos Locales
-
-Para eliminar totalmente la dependencia de `transformers` y `local models`:
-
-- **Embedding:** Sustituir modelos locales por APIs de **OpenAI** (text-embedding-3-small/large), **Cohere** o **Voyage AI**.
-- **Audio/Transcripción:** Si se integrara Whisper, usar la **OpenAI Audio API** o **Deepgram** en lugar de `faster-whisper` local.
+## 📂 Module Files
+- `src/services/ingest_service.py`: The "pure" business logic orchestrator.
+- `src/infrastructure/ingestion/`: Technology-specific implementations (Docling).
+- `src/core/interfaces/`: Contracts ensuring decoupling.
 
 ---
-
-## Estrategia de Refactorización (Roadmap)
-
-Para "cloudificar" este módulo sin romper la lógica actual:
-
-1.  **Abstracción de Clientes:** Crear interfaces base para `BaseChunker` y `BaseEmbedder`.
-2.  **Inyección de Configuración:** Usar variables de entorno (`.env`) para alternar entre proveedores (e.g., `PARSING_STRATEGY=local` vs `PARSING_STRATEGY=llamaparse`).
-3.  **Clientes Remotos:** Implementar adaptadores que llamen a las APIs de LlamaParse o Unstructured.io, devolviendo el mismo formato de `DocumentChunk`.
-4.  **Docling Serve integration:** Si se prefiere mantener Docling, configurar el `DocumentConverter` para conectar con una instancia remota de **Docling Serve** en lugar de instanciar los modelos localmente.
+*Note: This architecture ensures the business logic remains clean and independent of specific parsing or chunking tools.*

@@ -5,6 +5,7 @@ from src.core.interfaces.embedder import IEmbedder
 from src.core.interfaces.llm import ILLMProvider
 from src.core.interfaces.repository import IRepository
 from src.core.schemas.search import SearchHit, SearchType
+from src.services.context_builder import ContextBuilder
 
 logger = logging.getLogger(__name__)
 
@@ -12,10 +13,17 @@ logger = logging.getLogger(__name__)
 class RAGService:
     """Business logic for Retrieval Augmented Generation."""
 
-    def __init__(self, repository: IRepository, llm: ILLMProvider, embedder: IEmbedder):
+    def __init__(
+        self,
+        repository: IRepository,
+        llm: ILLMProvider,
+        embedder: IEmbedder,
+        context_builder: ContextBuilder = None,
+    ):
         self.repository = repository
         self.llm = llm
         self.embedder = embedder
+        self.context_builder = context_builder or ContextBuilder()
 
     async def search(
         self, query: str, limit: int = 5, search_type: SearchType = SearchType.HYBRID
@@ -65,7 +73,7 @@ class RAGService:
 
         # Process semantic results
         for rank, hit in enumerate(semantic_hits):
-            chunk_id = hit.chunk.id
+            chunk_id = hit.chunk.id or f"temp_sem_{rank}"
             rrf_scores[chunk_id] = rrf_scores.get(chunk_id, 0) + 1.0 / (k + rank)
             hits_by_id[chunk_id] = hit
             if hit.semantic_score is not None:
@@ -73,7 +81,7 @@ class RAGService:
 
         # Process text results
         for rank, hit in enumerate(text_hits):
-            chunk_id = hit.chunk.id
+            chunk_id = hit.chunk.id or f"temp_text_{rank}"
             rrf_scores[chunk_id] = rrf_scores.get(chunk_id, 0) + 1.0 / (k + rank)
             if chunk_id not in hits_by_id:
                 hits_by_id[chunk_id] = hit
@@ -114,20 +122,15 @@ class RAGService:
         if not hits:
             logger.warning(f"No documents found for search query: {search_query}")
             return (
-                "No encontré información relevante en la base de conocimientos.",
+                "I couldn't find any relevant information in the knowledge base.",
                 [],
                 search_query,
             )
 
-        # Build context (will be replaced by ContextBuilder later)
-        context = "\n".join(
-            [
-                f"--- Documento: {h.document_title} (score: {h.display_score:.3f}) ---\n{h.chunk.content}"
-                for h in hits
-            ]
-        )
+        # Build context using ContextBuilder
+        result = self.context_builder.build(hits)
 
-        user_prompt = f"Contexto:\n{context}\n\nPregunta: {query}"
+        user_prompt = f"Context:\n{result.context}\n\nQuestion: {query}"
         response = await self.llm.generate_response(
             system_prompt, user_prompt, stream=True
         )

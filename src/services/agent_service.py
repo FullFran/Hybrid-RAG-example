@@ -39,16 +39,16 @@ class AgentService:
         "function": {
             "name": "search_documents",
             "description": (
-                "Buscar información en la base de conocimientos del usuario. "
-                "Usar cuando la pregunta requiere datos específicos de documentos, "
-                "información personal, o contexto que no es conocimiento general."
+                "Search for information in the user's knowledge base. "
+                "Use when the question requires specific data from documents, "
+                "personal information, or context that is not general knowledge."
             ),
             "parameters": {
                 "type": "object",
                 "properties": {
                     "query": {
                         "type": "string",
-                        "description": "Consulta optimizada para búsqueda semántica",
+                        "description": "Optimized query for semantic search",
                     }
                 },
                 "required": ["query"],
@@ -57,19 +57,19 @@ class AgentService:
     }
 
     # Classifier prompt for fallback strategy
-    CLASSIFIER_PROMPT = """Analiza la pregunta del usuario y clasifica si necesitas buscar información.
+    CLASSIFIER_PROMPT = """Analyze the user's question and classify if you need to search for information.
 
-Responde SOLO con una de estas palabras:
-- SEARCH = La pregunta requiere información específica de documentos personales, datos particulares, o contexto que no es conocimiento general.
-- DIRECT = Es conocimiento general, matemáticas, definiciones comunes, traducciones, o conversación casual.
+Respond ONLY with one of these words:
+- SEARCH = The question requires specific information from personal documents, particular data, or context that is not general knowledge.
+- DIRECT = It is general knowledge, math, common definitions, translations, or casual conversation.
 
-Ejemplos:
-- "¿Cuánto es 2+2?" → DIRECT
-- "¿Qué dice el documento sobre el presupuesto?" → SEARCH
-- "Traduce 'hello' al español" → DIRECT
-- "¿Cuáles son mis tareas pendientes?" → SEARCH
+Examples:
+- "How much is 2+2?" → DIRECT
+- "What does the document say about the budget?" → SEARCH
+- "Translate 'hello' to Spanish" → DIRECT
+- "What are my pending tasks?" → SEARCH
 
-Responde SOLO: SEARCH o DIRECT"""
+Respond ONLY: SEARCH or DIRECT"""
 
     def __init__(
         self,
@@ -159,11 +159,11 @@ Responde SOLO: SEARCH o DIRECT"""
         we search. Otherwise, we respond directly.
         """
         system = (
-            "Eres un asistente inteligente con acceso a una base de conocimientos. "
-            "Si la pregunta del usuario parece requerir información de sus documentos "
-            "personales, reuniones, proyectos, o cualquier dato específico, "
-            "DEBES usar search_documents. Solo responde directamente para preguntas "
-            "de conocimiento general obvio como matemáticas simples o saludos."
+            "You are an intelligent assistant with access to a knowledge base. "
+            "If the user's question seems to require information from their "
+            "personal documents, meetings, projects, or any specific data, "
+            "you MUST use search_documents. Only respond directly for questions "
+            "of obvious general knowledge like simple math or greetings."
         )
 
         response = await self.llm.generate_with_tools(
@@ -198,19 +198,24 @@ Responde SOLO: SEARCH o DIRECT"""
 
         This works with any LLM that doesn't support function calling.
         """
-        classifier = """Clasifica esta pregunta en UNA palabra:
+        classifier = """Classify this question in ONE word:
 
-SEARCH = Cualquier pregunta sobre: documentos, reuniones, proyectos, tareas, datos personales, información específica, "qué pasó", "qué dice", referencias a eventos o personas.
+SEARCH = Any question about: documents, meetings, projects, tasks, personal data, specific information, "what happened", "what does it say", references to events or people.
 
-DIRECT = SOLO para: saludos, matemáticas simples, traducciones, definiciones de diccionario, conocimiento general obvio.
+DIRECT = ONLY for: greetings, simple math, translations, dictionary definitions, obvious general knowledge.
 
-EN CASO DE DUDA → SEARCH
+IF IN DOUBT → SEARCH
 
-Responde SOLO: SEARCH o DIRECT"""
+Respond ONLY: SEARCH or DIRECT"""
 
         response = await self.llm.generate_response(classifier, query, stream=False)
 
-        response_upper = response.strip().upper()
+        # Fix: ensure we don't try to strip an AsyncIterator (though stream=False returns str)
+        if isinstance(response, str):
+            response_upper = response.strip().upper()
+        else:
+            # This should not happen with stream=False, but for safety with types
+            response_upper = "SEARCH"
 
         # Parse the response - conservative: default to SEARCH
         if "DIRECT" in response_upper and "SEARCH" not in response_upper:
@@ -232,18 +237,23 @@ Responde SOLO: SEARCH o DIRECT"""
             An optimized query string for search.
         """
         system_prompt = (
-            "Eres un experto en recuperación de información. Tu tarea es convertir una "
-            "pregunta conversacional en una consulta de búsqueda optimizada (keywords y conceptos clave).\n"
-            "Reglas:\n"
-            "- Elimina saludos, cortesías y relleno.\n"
-            "- Extrae las entidades y conceptos principales.\n"
-            "- Si la pregunta es corta y directa, mantenla igual.\n"
-            "- RESPONDE ÚNICAMENTE CON LA CONSULTA OPTIMIZADA, SIN EXPLICACIONES."
+            "You are an information retrieval expert. Your task is to convert a "
+            "conversational question into an optimized search query (keywords and key concepts).\n"
+            "Rules:\n"
+            "- Remove greetings, politeness, and filler.\n"
+            "- Extract main entities and concepts.\n"
+            "- If the question is short and direct, keep it as is.\n"
+            "- RESPOND ONLY WITH THE OPTIMIZED QUERY, WITHOUT EXPLANATIONS."
         )
 
         reformulated = await self.llm.generate_response(
             system_prompt, query, stream=False
         )
-        result = reformulated.strip().strip('"').strip("'")
+
+        if isinstance(reformulated, str):
+            result = reformulated.strip().strip('"').strip("'")
+        else:
+            result = query
+
         logger.debug(f"Query reformulated: '{query}' -> '{result}'")
         return result

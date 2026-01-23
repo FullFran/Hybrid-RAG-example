@@ -26,14 +26,14 @@ async def main():
             f"[bold blue]RAG Agent (ReAct Mode)[/bold blue]\n"
             f"LLM: [green]{settings.llm_model}[/green]\n"
             f"DB: [green]{settings.db_type.capitalize()}[/green]\n"
-            f"Mode: [yellow]Conservative (busca si hay duda)[/yellow]",
+            f"Mode: [yellow]Conservative (searches if in doubt)[/yellow]",
             style="blue",
         )
     )
 
     while True:
         try:
-            query = Prompt.ask("\n[bold green]Pregunta").strip()
+            query = Prompt.ask("\n[bold green]Question").strip()
 
             if query.lower() in ["exit", "quit", "q"]:
                 break
@@ -42,7 +42,7 @@ async def main():
                 continue
 
             with console.status(
-                "[bold blue]El agente está decidiendo cómo responder...",
+                "[bold blue]The agent is deciding how to respond...",
                 spinner="dots",
             ):
                 # The agent decides whether to search or respond directly
@@ -51,18 +51,18 @@ async def main():
             # --- Explainability: Show reasoning ---
             if result.searched:
                 console.print(
-                    "[dim]🤖 Decisión: [bold]BUSCAR[/bold] en la base de conocimientos[/dim]"
+                    "[dim]🤖 Decision: [bold]SEARCH[/bold] knowledge base[/dim]"
                 )
                 if result.search_query:
                     console.print(
-                        f"[dim]🔎 Buscando por: [italic]{result.search_query}[/italic][/dim]"
+                        f"[dim]🔎 Searching for: [italic]{result.search_query}[/italic][/dim]"
                     )
             else:
                 console.print(
-                    "[dim]🤖 Decisión: Responder [bold]DIRECTAMENTE[/bold] (conocimiento general)[/dim]"
+                    "[dim]🤖 Decision: Respond [bold]DIRECTLY[/bold] (general knowledge)[/dim]"
                 )
 
-            console.print("[bold blue]Asistente:[/bold blue] ", end="")
+            console.print("[bold blue]Assistant:[/bold blue] ", end="")
 
             # --- Stream Response ---
             response = result.response
@@ -83,7 +83,7 @@ async def main():
                 )
                 console.print(
                     Panel(
-                        f"[bold dim]Fuentes utilizadas:[/bold dim]\n{sources_text}",
+                        f"[bold dim]Sources used:[/bold dim]\n{sources_text}",
                         style="dim",
                         padding=(0, 1),
                     )

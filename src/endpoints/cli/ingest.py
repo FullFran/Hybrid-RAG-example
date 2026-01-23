@@ -13,29 +13,29 @@ console = Console()
 
 async def main():
     parser = argparse.ArgumentParser(
-        description="Ingesta de documentos (Clean Architecture)"
+        description="Document Ingestion (Clean Architecture)"
     )
     parser.add_argument(
-        "--documents", "-d", default="documents", help="Carpeta de documentos"
+        "--documents", "-d", default="documents", help="Documents folder"
     )
     parser.add_argument(
         "--clean",
         action="store_true",
-        help="Borrar todos los documentos antes de empezar",
+        help="Wipe all documents before starting",
     )
     args = parser.parse_args()
 
     ingest_service = bootstrap_ingest_service()
 
     if args.clean:
-        console.print("[yellow]Limpiando base de datos...[/yellow]")
+        console.print("[yellow]Cleaning database...[/yellow]")
         await ingest_service.clean()
-        console.print("[green]Base de datos limpia.[/green]")
+        console.print("[green]Database cleaned.[/green]")
         if not args.documents or not os.path.exists(args.documents):
             return
 
     if not os.path.exists(args.documents):
-        console.print(f"[red]Error: Directorio {args.documents} no encontrado.[/red]")
+        console.print(f"[red]Error: Directory {args.documents} not found.[/red]")
         return
 
     # Simple discovery for this example
@@ -44,39 +44,22 @@ async def main():
         files.extend(glob.glob(os.path.join(args.documents, "**", ext), recursive=True))
 
     if not files:
-        console.print("[yellow]No se encontraron archivos compatibles.[/yellow]")
+        console.print("[yellow]No compatible files found.[/yellow]")
         return
 
-    console.print(f"Encontrados {len(files)} archivos para procesar.")
+    console.print(f"Found {len(files)} files to process.")
 
     with Progress() as progress:
-        task = progress.add_task("[cyan]Ingestando...", total=len(files))
+        task = progress.add_task("[cyan]Ingesting...", total=len(files))
 
         for file_path in files:
             try:
-                # We reuse the logic for reading but here we just simulate for brevity
-                # In a real scenario, we'd use Docling here too or pass it to the service
-                from src.ingestion.ingest import (
-                    DocumentIngestionPipeline,
-                    IngestionConfig,
-                )
-
-                # We can reuse the pipeline reader or move it to infra/docling
-                pipeline = DocumentIngestionPipeline(IngestionConfig())
-                content, docling_doc = pipeline._read_document(file_path)
-                title = pipeline._extract_title(content, file_path)
-
-                await ingest_service.ingest_file(
-                    file_path=file_path,
-                    content=content,
-                    title=title,
-                    docling_doc=docling_doc,
-                )
+                await ingest_service.ingest_file(file_path=file_path)
                 progress.update(task, advance=1)
             except Exception as e:
-                console.print(f"[red]Error procesando {file_path}: {e}[/red]")
+                console.print(f"[red]Error processing {file_path}: {e}[/red]")
 
-    console.print("\n[bold green]✓ Ingesta completada.[/bold green]")
+    console.print("\n[bold green]✓ Ingestion completed.[/bold green]")
 
 
 if __name__ == "__main__":

@@ -33,7 +33,10 @@ async def main():
 
     while True:
         try:
-            query = Prompt.ask("\n[bold green]Question").strip()
+            try:
+                query = Prompt.ask("\n[bold green]Question").strip()
+            except EOFError:
+                break
 
             if query.lower() in ["exit", "quit", "q"]:
                 break

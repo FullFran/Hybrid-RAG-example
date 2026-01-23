@@ -157,5 +157,10 @@ class MongoRepository(IRepository):
             )
         return results
 
+    async def clean_all(self) -> None:
+        """Clear all documents and chunks from MongoDB."""
+        await self.chunks.delete_many({})
+        await self.documents.delete_many({})
+
     async def close(self):
         self.client.close()

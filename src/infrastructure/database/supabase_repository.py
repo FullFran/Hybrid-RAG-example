@@ -183,6 +183,21 @@ class SupabaseRepository(IRepository):
             )
         return hits
 
+    async def clean_all(self) -> None:
+        """Clear all documents and chunks from Supabase."""
+        await asyncio.to_thread(
+            lambda: self.client.table("chunks")
+            .delete()
+            .neq("id", "00000000-0000-0000-0000-000000000000")
+            .execute()
+        )
+        await asyncio.to_thread(
+            lambda: self.client.table("documents")
+            .delete()
+            .neq("id", "00000000-0000-0000-0000-000000000000")
+            .execute()
+        )
+
     async def close(self) -> None:
         """Close the repository connection.
 

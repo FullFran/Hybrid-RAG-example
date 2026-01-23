@@ -1,4 +1,3 @@
-from src.ingestion.chunker import ChunkingConfig, DoclingHybridChunker
 from src.services.ingest_service import IngestService
 from src.services.rag_service import RAGService
 from src.settings import load_settings
@@ -56,6 +55,8 @@ def bootstrap_ingest_service() -> IngestService:
     repository = _get_repository(settings)
 
     from src.infrastructure.embeddings.openai_embedder import OpenAIEmbedder
+    from src.infrastructure.ingestion.docling_parser import DoclingParser
+    from src.infrastructure.ingestion.docling_chunker import DoclingChunker
 
     embedder = OpenAIEmbedder(
         api_key=settings.embedding_api_key,
@@ -63,11 +64,10 @@ def bootstrap_ingest_service() -> IngestService:
         base_url=settings.embedding_base_url,
     )
 
-    chunker = DoclingHybridChunker(
-        ChunkingConfig(max_tokens=settings.embedding_dimension)
-    )
+    parser = DoclingParser()
+    chunker = DoclingChunker(max_tokens=settings.embedding_dimension)
 
-    return IngestService(repository, embedder, chunker)
+    return IngestService(repository, embedder, parser, chunker)
 
 
 def bootstrap_agent_service():

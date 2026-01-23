@@ -34,6 +34,7 @@ def bootstrap_rag_service() -> RAGService:
 
     from src.infrastructure.embeddings.openai_embedder import OpenAIEmbedder
     from src.infrastructure.llm.openai_provider import OpenAILLMProvider
+    from src.services.context_builder import ContextBuilder
 
     llm = OpenAILLMProvider(
         api_key=settings.llm_api_key,
@@ -47,7 +48,12 @@ def bootstrap_rag_service() -> RAGService:
         base_url=settings.embedding_base_url,
     )
 
-    return RAGService(repository, llm, embedder)
+    context_builder = ContextBuilder(
+        max_chars=8000,  # Could be moved to settings
+        max_per_document=2,
+    )
+
+    return RAGService(repository, llm, embedder, context_builder)
 
 
 def bootstrap_ingest_service() -> IngestService:

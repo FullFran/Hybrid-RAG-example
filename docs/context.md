@@ -1,111 +1,114 @@
-# Arquitectura del Sistema: MongoDB RAG Agent
+# System Context: Hybrid RAG Agent
 
-Este documento describe la arquitectura del sistema **MongoDB RAG Agent**, un sistema de Recuperación Aumentada por Generación (RAG) diseñado para buscar y responder preguntas sobre una base de conocimientos documental.
+This document describes the high-level architecture of the **Hybrid RAG Agent**, a Retrieval-Augmented Generation system designed to search and answer questions over a documentary knowledge base.
 
-## 1. Contexto del Sistema (C4 Level 1)
+## 1. System Context (C4 Level 1)
 
-El siguiente diagrama muestra cómo interactúa el sistema con los usuarios y los servicios externos.
-
-```mermaid
-C4Context
-    title Diagrama de Contexto: MongoDB RAG Agent
-
-    Person(user, "Usuario Técnico", "Interactúa con el sistema vía CLI para realizar consultas.")
-
-    System(rag_agent, "MongoDB RAG Agent", "Procesa documentos, genera embeddings y responde consultas usando RAG.")
-
-    System_Ext(mongodb, "MongoDB Atlas", "Almacena documentos, fragmentos (chunks) y realiza búsquedas vectoriales/texto.")
-    System_Ext(openai, "OpenAI / OpenRouter", "Provee servicios de embeddings (LLM) y generación de texto.")
-    System_Ext(docling, "Docling", "Servicio de procesamiento y conversión de documentos (PDF, Docx, etc.).")
-
-    Rel(user, rag_agent, "Realiza consultas y recibe respuestas")
-    Rel(rag_agent, mongodb, "Almacena y busca datos")
-    Rel(rag_agent, openai, "Genera embeddings y respuestas LLM")
-    Rel(rag_agent, docling, "Convierte documentos a Markdown")
-```
-
----
-
-## 2. Contenedores del Sistema (C4 Level 2)
-
-El sistema se divide en dos componentes principales: el **Pipeline de Ingesta** y el **Agente RAG**.
+This diagram is for **business stakeholders** - it shows how the system interacts with users and external services at the highest level.
 
 ```mermaid
-C4Container
-    title Diagrama de Contenedores: MongoDB RAG Agent
+flowchart TB
+    User((Technical User))
 
-    Person(user, "Usuario Técnico", "Consultas vía CLI")
+    subgraph System["Hybrid RAG Agent"]
+        RAG["RAG System"]
+    end
 
-    Container_Boundary(c1, "Aplicación Python") {
-        Container(cli, "CLI Interface", "Rich / Click", "Interfaz de línea de comandos interactiva.")
-        Container(ingest_pipeline, "Ingestion Pipeline", "Python / Docling", "Procesa archivos locales y los guarda en DB.")
-        Container(agent, "RAG Agent", "Pydantic AI", "Orquesta la búsqueda y la generación de respuestas.")
-        Container(tools, "Search Tools", "Python / Motor", "Implementa algoritmos de búsqueda (Semántica, Texto, Híbrida).")
-    }
+    subgraph External["External Services"]
+        DB[(Vector Database)]
+        LLM["LLM Provider"]
+        Parser["Document Parser"]
+    end
 
-    ContainerDb(db, "MongoDB Atlas", "NoSQL / Vector Store", "Almacena 'documents' y 'chunks' con índices de búsqueda.")
+    User -->|"Queries & Ingestion"| RAG
+    RAG -->|"Store & Search"| DB
+    RAG -->|"Embeddings & Generation"| LLM
+    RAG -->|"Parse Documents"| Parser
 
-    System_Ext(llm, "LLM Provider", "OpenAI / OpenRouter API", "Generación de texto y embeddings.")
-
-    Rel(user, cli, "Usa")
-    Rel(cli, agent, "Envía consultas")
-    Rel(cli, ingest_pipeline, "Inicia ingesta de archivos locales")
-    Rel(ingest_pipeline, db, "Guarda documentos y chunks")
-    Rel(agent, tools, "Llama a herramientas de búsqueda")
-    Rel(tools, db, "Realiza consultas $vectorSearch y $search")
-    Rel(agent, llm, "Solicita generación de respuesta")
+    %% Styling
+    style System fill:#0984e3,stroke:#74b9ff,color:#fff
+    style External fill:#636e72,stroke:#2d3436,color:#fff
+    style User fill:#e17055,stroke:#fab1a0,color:#fff
 ```
 
----
+### Context Description
 
-## 3. Flujos Principales
-
-### A. Pipeline de Ingestión
-
-1. **Carga**: Se leen archivos del directorio `./documents`.
-2. **Conversión**: **Docling** convierte PDF/Docx/Audio a Markdown.
-3. **Fragmentación (Chunking)**: Se divide el texto en fragmentos semánticos.
-4. **Embedding**: Se generan vectores para cada fragmento vía OpenAI.
-5. **Almacenamiento**: Se guardan en MongoDB en dos colecciones:
-   - `documents`: Metadatos del archivo original.
-   - `chunks`: Texto del fragmento, vector de embedding y referencia al document_id.
-
-### B. Ciclo de Consulta (RAG)
-
-1. **Input**: El usuario escribe una consulta en el CLI.
-2. **Razonamiento**: El Agente (Pydantic AI) decide qué herramienta usar.
-3. **Búsqueda Híbrida**:
-   - **Búsqueda Semántica**: Usa `$vectorSearch` para encontrar conceptos similares.
-   - **Búsqueda de Texto**: Usa `$search` (Lucene) para coincidencias exactas y fuzzy.
-4. **Fusión (RRF)**: Se combinan los resultados usando _Reciprocal Rank Fusion_ para priorizar lo más relevante.
-5. **Síntesis**: El LLM recibe los fragmentos recuperados y genera la respuesta final.
+| Actor/System | Description |
+|-------------|-------------|
+| **Technical User** | Interacts with the system via CLI to ingest documents and perform queries |
+| **Hybrid RAG Agent** | Processes documents, generates embeddings, and answers queries using RAG with hybrid search |
+| **Vector Database** | Stores documents, chunks, and performs vector + text searches (MongoDB Atlas or Supabase) |
+| **LLM Provider** | Provides embedding generation and text generation (OpenAI, OpenRouter) |
+| **Document Parser** | Converts various document formats (PDF, DOCX, etc.) to text (Docling) |
 
 ---
 
-## 4. Dependencias de Base de Datos (Clave para Migración)
+## 2. Key Capabilities
 
-Si planeas cambiar la base de datos, los puntos de acoplamiento están en:
+### A. Document Ingestion
+- Accepts multiple file formats: PDF, DOCX, Markdown, plain text
+- Parses documents to extract text content
+- Chunks text into semantic fragments
+- Generates vector embeddings for each chunk
+- Stores chunks with metadata in vector database
 
-1. **`src/dependencies.py`**:
+### B. Query Processing (RAG)
+- Receives natural language queries from users
+- Uses a ReAct agent to classify intent and decide on actions
+- Performs hybrid search (semantic + keyword) on the knowledge base
+- Assembles context from relevant chunks
+- Generates responses using LLM with retrieved context
 
-   - Gestión de la conexión (`AsyncMongoClient`).
-   - Inicialización del cliente y acceso a colecciones.
-
-2. **`src/tools.py`**:
-
-   - Consultas de agregación de MongoDB.
-   - Uso de operadores específicos: `$vectorSearch`, `$search`, `$lookup` (para joins entre chunks y docs), y `$meta: "vectorSearchScore"`.
-
-3. **`src/ingestion/ingest.py`**:
-   - Lógica de guardado (`insert_one`, `insert_many`).
-   - Gestión de IDs de documentos (`ObjectId`).
-
-> [!IMPORTANT]
-> El sistema utiliza **RRF Manual** en Python (`reciprocal_rank_fusion` en `src/tools.py`). Esto es una ventaja para la migración, ya que no dependes de una implementación nativa de la base de datos para la fusión de rangos.
+### C. Hybrid Search
+- **Semantic Search**: Uses vector embeddings to find conceptually similar content
+- **Text Search**: Uses full-text search for exact and fuzzy keyword matches
+- **Reciprocal Rank Fusion (RRF)**: Combines results from both search types
 
 ---
 
-## 5. Modelos de Datos
+## 3. Current Implementation
 
-- **Document**: `{ _id, title, source, metadata, created_at }`
-- **Chunk**: `{ _id, document_id, content, embedding: [float], metadata, token_count }`
+| Component | Implementation |
+|-----------|----------------|
+| **User Interface** | CLI (Rich library) |
+| **Vector Database** | MongoDB Atlas or Supabase (pgvector) |
+| **LLM Provider** | OpenAI GPT-4 / OpenRouter |
+| **Embedding Model** | OpenAI text-embedding-3-small |
+| **Document Parser** | Docling |
+
+---
+
+## 4. Related Documentation
+
+- **[Architecture (C4 Level 2-3)](architecture.md)**: Container and Component diagrams
+- **[Agent Service Detail](agent_service_detail.md)**: ReAct agent implementation
+- **[RAG Service Detail](rag_service_detail.md)**: Hybrid search and generation flow
+
+---
+
+## 5. Data Flow Overview
+
+```mermaid
+flowchart LR
+    subgraph Ingestion["Ingestion Flow"]
+        direction LR
+        Files["Documents"] --> Parse["Parse"]
+        Parse --> Chunk["Chunk"]
+        Chunk --> Embed["Embed"]
+        Embed --> Store["Store"]
+    end
+
+    subgraph Query["Query Flow"]
+        direction LR
+        Q["Query"] --> Agent["Agent"]
+        Agent --> Search["Hybrid Search"]
+        Search --> Context["Build Context"]
+        Context --> Generate["Generate"]
+        Generate --> Response["Response"]
+    end
+
+    Store -.->|"Vector DB"| Search
+
+    style Ingestion fill:#00b894,stroke:#55efc4,color:#2d3436
+    style Query fill:#0984e3,stroke:#74b9ff,color:#fff
+```

@@ -33,7 +33,7 @@ All code MUST follow the Clean Architecture principles established for this RAG 
 
 ## 🚀 Key Rules
 
-- **Independencia de infraestructura**: Always code against interfaces in `src/core/interfaces/`.
-- **Inyección de Dependencias**: Services must receive interface implementations via `__init__`.
+- **Infrastructure Independence**: Always code against interfaces in `src/core/interfaces/`.
+- **Dependency Injection**: Services must receive interface implementations via `__init__`.
 - **Clean Registry**: Do NOT add ad-hoc scripts to the root. use `scripts/` or `src/endpoints/`.
 - **Legacy Awareness**: Keep a clear distinction between MongoDB implementation and any legacy or alternative (Supabase) code.

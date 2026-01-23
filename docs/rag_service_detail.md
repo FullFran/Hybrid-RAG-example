@@ -1,19 +1,19 @@
-# Detalle de Implementación: RAG Service
+# Implementation Detail: RAG Service
 
-Este documento proporciona una vista de "lupa" sobre el `RAGService`, detallando su lógica interna, flujo de datos y cómo interactúa con otras capas del sistema.
+This document provides a "magnifying glass" view of the `RAGService`, detailing its internal logic, data flow, and how it interacts with other system layers.
 
-## 1. Responsabilidad
+## 1. Responsibility
 
-El `RAGService` es el orquestador principal del flujo de **Generación Aumentada por Recuperación (RAG)**. Su función es mediar entre la consulta del usuario, la base de conocimientos y el modelo de lenguaje (LLM).
+The `RAGService` is the main orchestrator of the **Retrieval-Augmented Generation (RAG)** flow. Its function is to mediate between the user query, the knowledge base, and the language model (LLM).
 
-## 2. Diagrama de Secuencia (Flujo Híbrido)
+## 2. Sequence Diagram (Hybrid Flow)
 
-El siguiente diagrama muestra el flujo temporal cuando se utiliza `search_type="hybrid"`:
+The following diagram shows the temporal flow when `search_type="hybrid"` is used:
 
 ```mermaid
 sequenceDiagram
     autonumber
-    participant U as Usuario
+    participant U as User
     participant RS as RAGService
     participant LLM as ILLMProvider
     participant EMB as IEmbedder
@@ -24,9 +24,9 @@ sequenceDiagram
 
     Note over RS: search(query, search_type="hybrid")
     RS->>LLM: _reformulate_query(query)
-    LLM-->>RS: search_query (optimizada)
+    LLM-->>RS: optimized search_query
 
-    par Búsqueda Paralela
+    par Parallel Search
         RS->>EMB: get_embedding(search_query)
         EMB-->>RS: vector[]
         RS->>DB: semantic_search(vector, limit*2)
@@ -40,13 +40,13 @@ sequenceDiagram
     RS->>RS: Merge & Rank (RRF k=60)
 
     RS->>LLM: generate_response(system_prompt, context + query)
-    LLM-->>U: AsyncIterator[respuesta]
+    LLM-->>U: AsyncIterator[response]
     deactivate RS
 ```
 
-## 3. Diagrama de Componentes (C4 Zoom-in)
+## 3. Component Diagram (C4 Zoom-in)
 
-Vista estática de las dependencias internas del `RAGService`:
+Static view of `RAGService` internal dependencies:
 
 ```mermaid
 flowchart TB
@@ -62,7 +62,7 @@ flowchart TB
         search --> rrf
     end
 
-    subgraph Interfaces["Abstracciones (src.core.interfaces)"]
+    subgraph Interfaces["Abstractions (src.core.interfaces)"]
         direction LR
         IEmb([IEmbedder])
         IRepo[(IRepository)]
@@ -70,8 +70,8 @@ flowchart TB
     end
 
     %% Dependencies
-    reformulate -.->|usa| ILLM
-    search -.->|vectoriza| IEmb
+    reformulate -.->|uses| ILLM
+    search -.->|vectorizes| IEmb
     search -.->|semantic_search / text_search| IRepo
     answer -.->|generate_response| ILLM
 
@@ -84,47 +84,47 @@ flowchart TB
     style rrf fill:#533483,stroke:#1a1a2e,color:#fff
 ```
 
-## 4. Flujos Principales
+## 4. Main Flows
 
-### A. Búsqueda Híbrida Agéntica (`search_type="hybrid"`)
+### A. Agentic Hybrid Search (`search_type="hybrid"`)
 
-El método `search()` coordina múltiples pasos:
+The `search()` method coordinates multiple steps:
 
-1. **Reformulación**: `_reformulate_query()` usa el LLM para limpiar la consulta de ruido conversacional y extraer keywords.
-2. **Paralelismo**:
-   - Genera embeddings via `IEmbedder.get_embedding()`.
-   - Ejecuta búsqueda de texto completo via `IRepository.text_search()`.
-3. **Fusión de Rangos (RRF)**: `_reciprocal_rank_fusion()` combina los resultados usando la fórmula:
-   ```
-   score(d) = Σ 1 / (k + rank_i(d))
-   ```
-   donde `k=60` es el parámetro de suavizado.
+1. **Reformulation**: `_reformulate_query()` uses the LLM to clean conversational noise from the query and extract keywords.
+2. **Parallelism**:
+    - Generates embeddings via `IEmbedder.get_embedding()`.
+    - Executes full-text search via `IRepository.text_search()`.
+3. **Rank Fusion (RRF)**: `_reciprocal_rank_fusion()` combines results using the formula:
+    ```
+    score(d) = Σ 1 / (k + rank_i(d))
+    ```
+    where `k=60` is the smoothing parameter.
 
-### B. Modos Alternativos
+### B. Alternative Modes
 
-| Modo       | Descripción                                       |
+| Mode       | Description                                       |
 | ---------- | ------------------------------------------------- |
-| `semantic` | Solo búsqueda vectorial, sin reformulación ni RRF |
-| `text`     | Solo búsqueda textual (BM25/FTS), sin embeddings  |
+| `semantic` | Vector search only, no reformulation or RRF       |
+| `text`     | Text search only (BM25/FTS), no embeddings        |
 
-### C. Generación de Respuesta (`answer()`)
+### C. Response Generation (`answer()`)
 
-1. Invoca `search()` para obtener los top matches.
-2. Construye el `context` concatenando los fragmentos recuperados.
-3. Formatea el `user_prompt` inyectando contexto + pregunta original.
-4. Retorna un `AsyncIterator[str]` para soportar streaming.
+1. Invokes `search()` to get top matches.
+2. Builds the `context` by concatenating retrieved fragments.
+3. Formats the `user_prompt` injecting context + original question.
+4. Returns an `AsyncIterator[str]` to support streaming.
 
-## 5. Inversión de Dependencias
+## 5. Dependency Inversion
 
-El `RAGService` no conoce implementaciones concretas. Depende exclusivamente de interfaces:
+`RAGService` does not know concrete implementations. It depends exclusively on interfaces:
 
-| Interfaz       | Uso                                               |
+| Interface      | Use                                               |
 | -------------- | ------------------------------------------------- |
-| `IRepository`  | `semantic_search()` y `text_search()`             |
-| `IEmbedder`    | `get_embedding()` para vectorizar consultas       |
-| `ILLMProvider` | `generate_response()` para reformular y responder |
+| `IRepository`  | `semantic_search()` and `text_search()`             |
+| `IEmbedder`    | `get_embedding()` to vectorize queries            |
+| `ILLMProvider` | `generate_response()` to reformulate and respond  |
 
 ---
 
 > [!TIP]
-> Para ajustar la lógica de ranking, modifica el método `_reciprocal_rank_fusion()` y su parámetro `k`.
+> To adjust ranking logic, modify the `_reciprocal_rank_fusion()` method and its `k` parameter.

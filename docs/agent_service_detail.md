@@ -1,22 +1,22 @@
-# Detalle de Implementación: Agent Service
+# Implementation Detail: Agent Service
 
-Este documento proporciona una vista de "lupa" sobre el `AgentService`, detallando su lógica de decisión ReAct, flujo de datos y cómo orquesta el RAG.
+This document provides a "magnifying glass" view of the `AgentService`, detailing its ReAct decision logic, data flow, and how it orchestrates RAG.
 
-## 1. Responsabilidad
+## 1. Responsibility
 
-El `AgentService` es un agente ReAct vanilla que actúa como **punto de entrada principal** del sistema. Su función es decidir automáticamente si una pregunta requiere buscar en la base de conocimientos (RAG) o puede responderse directamente con conocimiento general del LLM.
+The `AgentService` is a vanilla ReAct agent that acts as the **main entry point** of the system. Its function is to automatically decide if a question requires searching the knowledge base (RAG) or can be answered directly using the LLM's general knowledge.
 
 > [!IMPORTANT]
-> El agente opera en **modo conservador**: ante cualquier duda, siempre busca en el RAG para priorizar la precisión sobre la velocidad.
+> The agent operates in **conservative mode**: when in doubt, it always searches the RAG to prioritize accuracy over speed.
 
-## 2. Diagrama de Secuencia (Flujo de Decisión)
+## 2. Sequence Diagram (Decision Flow)
 
-El siguiente diagrama muestra el flujo temporal del patrón ReAct:
+The following diagram shows the temporal flow of the ReAct pattern:
 
 ```mermaid
 sequenceDiagram
     autonumber
-    participant U as Usuario
+    participant U as User
     participant A as AgentService
     participant LLM as ILLMProvider
     participant RAG as RAGService
@@ -26,16 +26,16 @@ sequenceDiagram
 
     Note over A: _decide(query)
 
-    alt Function Calling soportado
+    alt Function Calling supported
         A->>LLM: generate_with_tools(query, [SEARCH_TOOL])
         LLM-->>A: ToolResponse
 
-        alt tool_calls presente
-            Note over A: Decisión: SEARCH
+        alt tool_calls present
+            Note over A: Decision: SEARCH
         else No tool_calls (conservative)
-            A->>LLM: Fallback a _decide_with_prompt()
+            A->>LLM: Fallback to _decide_with_prompt()
         end
-    else Solo Prompt Engineering
+    else Prompt Engineering Only
         A->>LLM: generate_response(classifier, query)
         LLM-->>A: "SEARCH" | "DIRECT"
     end
@@ -43,22 +43,22 @@ sequenceDiagram
     alt should_search = True
         A->>RAG: answer(query, system_prompt)
         activate RAG
-        Note over RAG: Búsqueda híbrida + generación
+        Note over RAG: Hybrid search + generation
         RAG-->>A: (response, matches, search_query)
         deactivate RAG
         A-->>U: AgentResponse(searched=True, matches)
     else should_search = False
         A->>LLM: generate_response(system_prompt, query)
-        LLM-->>U: AsyncIterator[respuesta]
+        LLM-->>U: AsyncIterator[response]
         A-->>U: AgentResponse(searched=False)
     end
 
     deactivate A
 ```
 
-## 3. Diagrama de Componentes (C4 Zoom-in)
+## 3. Component Diagram (C4 Zoom-in)
 
-Vista estática de las dependencias internas del `AgentService`:
+Static view of `AgentService` internal dependencies:
 
 ```mermaid
 flowchart TB
@@ -74,12 +74,12 @@ flowchart TB
         decide --> decidePrompt
     end
 
-    subgraph Interfaces["Abstracciones"]
+    subgraph Interfaces["Abstractions"]
         direction LR
         ILLM([ILLMProvider])
     end
 
-    subgraph Services["Servicios"]
+    subgraph Services["Services"]
         direction LR
         RAG["RAGService"]
     end
@@ -100,67 +100,67 @@ flowchart TB
     style decidePrompt fill:#533483,stroke:#1a1a2e,color:#fff
 ```
 
-## 4. Estrategias de Decisión
+## 4. Decision Strategies
 
-El agente implementa **dos estrategias** con fallback automático:
+The agent implements **two strategies** with automatic fallback:
 
-### A. Function Calling (Preferida)
+### A. Function Calling (Preferred)
 
-Usa la API nativa de OpenAI para definir una herramienta `search_documents`:
+Uses the native OpenAI API to define a `search_documents` tool:
 
 ```python
 SEARCH_TOOL = {
     "type": "function",
     "function": {
         "name": "search_documents",
-        "description": "Buscar información en la base de conocimientos",
+        "description": "Search for information in the knowledge base",
         "parameters": {"type": "object", "properties": {"query": {...}}}
     }
 }
 ```
 
-- Si el LLM invoca la herramienta → **SEARCH**
-- Si el LLM responde directamente → En modo conservador, **fallback a prompt**
+- If the LLM invokes the tool → **SEARCH**
+- If the LLM responds directly → In conservative mode, **fallback to prompt**
 
 ### B. Prompt Engineering (Fallback)
 
-Para LLMs que no soportan function calling:
+For LLMs that do not support function calling:
 
 ```
-Clasifica esta pregunta en UNA palabra:
-SEARCH = documentos, reuniones, proyectos, datos personales...
-DIRECT = SOLO para: saludos, matemáticas, traducciones...
-EN CASO DE DUDA → SEARCH
+Classify this question in ONE word:
+SEARCH = documents, meetings, personal data...
+DIRECT = ONLY for: greetings, math, translations...
+IF IN DOUBT → SEARCH
 ```
 
-## 5. Respuesta Estructurada
+## 5. Structured Response
 
-El agente retorna un `AgentResponse` dataclass para **explicabilidad**:
+The agent returns an `AgentResponse` dataclass for **explainability**:
 
-| Campo          | Tipo                 | Descripción                         |
+| Field          | Type                 | Description                         |
 | -------------- | -------------------- | ----------------------------------- |
-| `response`     | `AsyncIterator[str]` | Stream de la respuesta              |
-| `searched`     | `bool`               | Si usó RAG                          |
-| `search_query` | `str \| None`        | Query reformulada usada en búsqueda |
-| `matches`      | `List[SearchMatch]`  | Documentos encontrados (fuentes)    |
+| `response`     | `AsyncIterator[str]` | Response stream                     |
+| `searched`     | `bool`               | Whether RAG was used                |
+| `search_query` | `str \| None`        | Reformulated query used for search  |
+| `matches`      | `List[SearchMatch]`  | Found documents (sources)           |
 
-## 6. Inversión de Dependencias
+## 6. Dependency Inversion
 
-El `AgentService` depende de abstracciones, no de implementaciones:
+`AgentService` depends on abstractions, not implementations:
 
-| Dependencia   | Interfaz       | Uso                           |
+| Dependency    | Interface      | Use                           |
 | ------------- | -------------- | ----------------------------- |
-| `rag_service` | `RAGService`   | Búsqueda híbrida y generación |
-| `llm`         | `ILLMProvider` | Decisión y generación directa |
+| `rag_service` | `RAGService`   | Hybrid search and generation  |
+| `llm`         | `ILLMProvider` | Decision and direct generation|
 
-## 7. Configuración
+## 7. Configuration
 
-| Parámetro      | Default | Descripción                             |
+| Parameter      | Default | Description                             |
 | -------------- | ------- | --------------------------------------- |
-| `conservative` | `True`  | Si hay duda, buscar en RAG              |
-| `limit`        | `5`     | Número máximo de documentos a recuperar |
+| `conservative` | `True`  | Search RAG if in doubt                  |
+| `limit`        | `5`     | Maximum number of documents to retrieve |
 
 ---
 
 > [!TIP]
-> Para cambiar el comportamiento de decisión, edita `CLASSIFIER_PROMPT` en `agent_service.py` o ajusta el prompt del `_decide_with_tools()`.
+> To change decision behavior, edit `CLASSIFIER_PROMPT` in `agent_service.py` or adjust the `_decide_with_tools()` prompt.

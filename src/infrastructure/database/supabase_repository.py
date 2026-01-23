@@ -123,15 +123,15 @@ class SupabaseRepository(IRepository):
                 id=str(item["id"]),
                 document_id=str(item["document_id"]),
                 content=item["content"],
-                chunk_index=item["chunk_index"],
+                chunk_index=item.get("chunk_index", 0),  # Use get with default
                 metadata=item.get("metadata", {}),
             )
             hits.append(
                 SearchHit(
                     chunk=chunk,
-                    document_title=item["doc_title"],
-                    document_source=item["doc_source"],
-                    semantic_score=item["semantic_score"],
+                    document_title=item.get("doc_title", "Unknown"),
+                    document_source=item.get("doc_source", "Unknown"),
+                    semantic_score=item.get("semantic_score", 0.0),
                 )
             )
         return hits
@@ -163,22 +163,18 @@ class SupabaseRepository(IRepository):
         hits = []
         for item in result.data:
             chunk = Chunk(
-                id=str(item["id"]),
-                document_id=str(item["document_id"]),
-                content=item["content"],
+                id=str(item.get("id", "")),
+                document_id=str(item.get("document_id", "")),
+                content=item.get("content", ""),
                 metadata=item.get("metadata", {}),
-                chunk_index=item[
-                    "chunk_index"
-                ],  # Strict: requires migrations to be applied
+                chunk_index=item.get("chunk_index", 0),
             )
             hits.append(
                 SearchHit(
                     chunk=chunk,
-                    document_title=item[
-                        "doc_title"
-                    ],  # Strict: Fail early if data is bad
-                    document_source=item["doc_source"],
-                    text_score=item["text_score"],  # RENAMED for consistency
+                    document_title=item.get("doc_title", "Unknown"),
+                    document_source=item.get("doc_source", "Unknown"),
+                    text_score=item.get("text_score", 0.0),
                 )
             )
         return hits

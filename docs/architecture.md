@@ -1,80 +1,55 @@
-# Target Architecture: Clean RAG Architecture
+# Target Architecture: Clean RAG with ReAct Agent
 
-This document defines the **Clean Architecture** and decoupled design for the RAG system. The goal is to allow interchangeability of providers (Database, LLM, Embeddings, Parsing) and organize code following principles of single responsibility and separation of concerns.
+This document defines the **Clean Architecture** for the RAG system with a real ReAct agent.
 
 ## 1. Design Principles
 
-- **Independence of Frameworks**: Business logic should not depend on external libraries.
-- **Testability**: Business rules can be tested without the database or LLM.
-- **Independence of UI**: The interface (CLI or API) can change without affecting the core.
-- **Independence of Database**: You can switch from MongoDB to Supabase without touching the RAG logic.
-- **Independence of Ingestion**: Parsing and chunking strategies can be swapped via interfaces.
+- **Independence of Frameworks**: Business logic does not depend on external libraries.
+- **Testability**: Business rules testable without database or LLM.
+- **Independence of UI**: CLI can be replaced with API without affecting core.
+- **Independence of Database**: Switch MongoDB to Supabase without touching RAG logic.
+- **Independence of Ingestion**: Parsing and chunking strategies swappable via interfaces.
 
-## 2. Layer Structure and Interfaces
+## 2. Layer Structure
 
-The architecture is organized into the following contexts:
+### A. Domain Layer (`src/core/`)
 
-### A. Schemas (Domain Layer)
+Pure data models and abstract contracts:
 
-Defines base data models used throughout the system. They are pure and unaware of the database.
+- **Schemas**: `Document`, `Chunk`, `SearchHit`
+- **Interfaces**: `IRepository`, `ILLMProvider`, `IEmbedder`, `IParser`, `IChunker`
+- **Exceptions**: Domain-specific errors
 
-- `Document`: The original source document.
-- `Chunk`: A document fragment with its content and metadata.
-- `SearchMatch`: Represents a retrieved fragment with its relevance score.
+### B. Application Layer (`src/services/`)
 
-### B. DTOs (Data Transfer Objects)
+Business logic orchestration:
 
-Objects for moving data between layers, especially outwards from _Services_.
+| Service | Responsibility |
+|---------|----------------|
+| `AgentService` | ReAct agent with iterative tool use |
+| `RAGService` | Hybrid search and generation |
+| `IngestService` | Document processing pipeline |
+| `ContextBuilder` | Context assembly with diversity limits |
 
-- `QueryRequest`: User query data.
-- `QueryResponse`: Formatted response with sources and metadata.
-- `IngestRequest`: File upload/processing data.
+### C. Infrastructure Layer (`src/infrastructure/`)
 
-### C. Services (Application Layer)
+Concrete implementations:
 
-Contains business logic orchestration. Uses interfaces (Abstractions) to interact with external components.
+| Category | Implementations |
+|----------|-----------------|
+| Database | `MongoRepository`, `SupabaseRepository` |
+| LLM | `OpenAILLMProvider` |
+| Embeddings | `OpenAIEmbedder` |
+| Ingestion | `DoclingParser`, `DoclingChunker` |
 
-- `AgentService`: **Main entry point**. ReAct agent that decides whether to search RAG or respond directly. See [implementation detail](agent_service_detail.md).
-- `RAGService`: Orchestrates hybrid search and generation with context. Uses `ContextBuilder` for context assembly. See [implementation detail](rag_service_detail.md).
-- `IngestService`: Orchestrates parsing, chunking, embedding, and storage via interfaces.
-- `ContextBuilder`: Assembles context from search results with source attribution.
+### D. Endpoints Layer (`src/endpoints/`)
 
-### D. Core Interfaces (Abstraction Layer)
+User interfaces:
 
-Abstract contracts that define capabilities without implementation details:
+- **CLI**: Rich-based terminal interface
+- **API**: (Future) FastAPI endpoints
 
-| Interface        | Purpose                                      | Implementations                      |
-|------------------|----------------------------------------------|--------------------------------------|
-| `IRepository`    | Vector storage and hybrid search             | `MongoRepository`, `SupabaseRepository` |
-| `ILLMProvider`   | Text generation                              | `OpenAILLMProvider`                  |
-| `IEmbedder`      | Vector embedding generation                  | `OpenAIEmbedder`                     |
-| `IParser`        | Document parsing (PDF, DOCX, etc. → text)    | `DoclingParser`                      |
-| `IChunker`       | Text segmentation into semantic chunks       | `DoclingChunker`                     |
-| `IAdminRepository` | Administrative operations (clean, stats)   | `MongoRepository`, `SupabaseRepository` |
-
-### E. Endpoints (Interface Adapter Layer)
-
-System entry points.
-
-- `CLI`: Current implementation using Rich.
-- `API`: (Future) FastAPI/Flask endpoints.
-
-### F. Infrastructure (External Layer)
-
-Concrete implementations of provider interfaces.
-
-- **Database**: `MongoRepository`, `SupabaseRepository`
-- **LLM**: `OpenAILLMProvider`
-- **Embedder**: `OpenAIEmbedder`
-- **Ingestion**: `DoclingParser`, `DoclingChunker`
-
----
-
-## 3. Architecture Diagrams
-
-### C4 Level 2: Container Diagram
-
-Shows the main containers (applications/services) and how they interact.
+## 3. Architecture Diagram (C4 Level 2)
 
 ```mermaid
 flowchart TB
@@ -85,7 +60,7 @@ flowchart TB
     end
 
     subgraph Services["Application Layer"]
-        Agent["AgentService"]
+        Agent["AgentService<br/>(ReAct Loop)"]
         RAG["RAGService"]
         Ingest["IngestService"]
         Context["ContextBuilder"]
@@ -124,6 +99,8 @@ flowchart TB
 
     RAG -.-> IRepo
     RAG -.-> ILLM
+    RAG -.-> IEmb
+    Agent -.-> ILLM
     Ingest -.-> IRepo
     Ingest -.-> IEmb
     Ingest -.-> IParser
@@ -146,186 +123,7 @@ flowchart TB
     style Parsing fill:#fdcb6e,stroke:#f39c12,color:#2d3436
 ```
 
-### C4 Level 3: Component Diagram - IngestService
-
-Detailed view of the Ingestion Service and its dependencies.
-
-```mermaid
-flowchart TB
-    subgraph IngestService["IngestService"]
-        direction TB
-        ingest["ingest_documents()"]
-        process["_process_file()"]
-        save["_save_chunks()"]
-        ingest --> process
-        process --> save
-    end
-
-    subgraph Interfaces["Abstractions"]
-        direction LR
-        IParser([IParser])
-        IChunker([IChunker])
-        IEmb([IEmbedder])
-        IRepo([IRepository])
-    end
-
-    subgraph Implementations["Infrastructure"]
-        direction LR
-        DocParser["DoclingParser"]
-        DocChunker["DoclingChunker"]
-        OAIEmb["OpenAIEmbedder"]
-        Supa[(SupabaseRepository)]
-    end
-
-    process -.->|parse| IParser
-    process -.->|chunk| IChunker
-    save -.->|embed| IEmb
-    save -.->|store| IRepo
-
-    IParser -.-> DocParser
-    IChunker -.-> DocChunker
-    IEmb -.-> OAIEmb
-    IRepo -.-> Supa
-
-    %% Styling
-    style IngestService fill:#1a1a2e,stroke:#16213e,stroke-width:2px,color:#eaeaea
-    style Interfaces fill:#0f3460,stroke:#1a1a2e,stroke-width:2px,color:#eaeaea
-    style Implementations fill:#00b894,stroke:#55efc4,color:#2d3436
-    style ingest fill:#e94560,stroke:#1a1a2e,color:#fff
-    style process fill:#533483,stroke:#1a1a2e,color:#fff
-    style save fill:#533483,stroke:#1a1a2e,color:#fff
-```
-
-### C4 Level 3: Component Diagram - RAGService
-
-Detailed view of the RAG Service query flow.
-
-```mermaid
-flowchart TB
-    subgraph RAGService["RAGService"]
-        direction TB
-        answer["answer()"]
-        search["_hybrid_search()"]
-        generate["_generate_response()"]
-        answer --> search
-        search --> generate
-    end
-
-    subgraph Helpers["Support Services"]
-        Context["ContextBuilder"]
-    end
-
-    subgraph Interfaces["Abstractions"]
-        direction LR
-        IRepo([IRepository])
-        ILLM([ILLMProvider])
-    end
-
-    subgraph Implementations["Infrastructure"]
-        direction LR
-        Supa[(SupabaseRepository)]
-        OAILLM["OpenAILLMProvider"]
-    end
-
-    search -.->|hybrid_search| IRepo
-    generate -.->|generate| ILLM
-    generate --> Context
-
-    IRepo -.-> Supa
-    ILLM -.-> OAILLM
-
-    %% Styling
-    style RAGService fill:#1a1a2e,stroke:#16213e,stroke-width:2px,color:#eaeaea
-    style Helpers fill:#fdcb6e,stroke:#f39c12,color:#2d3436
-    style Interfaces fill:#0f3460,stroke:#1a1a2e,stroke-width:2px,color:#eaeaea
-    style Implementations fill:#00b894,stroke:#55efc4,color:#2d3436
-    style answer fill:#e94560,stroke:#1a1a2e,color:#fff
-    style search fill:#533483,stroke:#1a1a2e,color:#fff
-    style generate fill:#533483,stroke:#1a1a2e,color:#fff
-```
-
----
-
-## 4. Dependency Inversion (Code Example)
-
-To achieve decoupling, services do not import concrete implementations. Instead, they use interfaces:
-
-```python
-# core/interfaces/repository.py
-class IRepository(ABC):
-    @abstractmethod
-    async def hybrid_search(self, query: str, vector: list[float], limit: int) -> list[SearchMatch]:
-        pass
-
-# core/interfaces/parser.py
-class IParser(ABC):
-    @abstractmethod
-    def parse(self, file_path: Path) -> str:
-        """Parse a document file and return its text content."""
-        pass
-
-# core/interfaces/chunker.py
-class IChunker(ABC):
-    @abstractmethod
-    def chunk(self, text: str, metadata: dict) -> list[Chunk]:
-        """Split text into semantic chunks."""
-        pass
-
-# services/ingest_service.py
-class IngestService:
-    def __init__(
-        self,
-        repository: IRepository,
-        embedder: IEmbedder,
-        parser: IParser,    # Interface, not DoclingParser
-        chunker: IChunker,  # Interface, not DoclingChunker
-    ):
-        self.repository = repository
-        self.embedder = embedder
-        self.parser = parser
-        self.chunker = chunker
-```
-
-## 5. Folder Organization
-
-```text
-src/
-├── core/
-│   ├── schemas/           # Document, Chunk, SearchMatch
-│   ├── dtos/              # Input/Output Data Transfer Objects
-│   ├── interfaces/        # Abstract contracts
-│   │   ├── repository.py      # IRepository
-│   │   ├── admin_repository.py # IAdminRepository
-│   │   ├── llm.py             # ILLMProvider
-│   │   ├── embedder.py        # IEmbedder
-│   │   ├── parser.py          # IParser (NEW)
-│   │   └── chunker.py         # IChunker (NEW)
-│   └── prompts.py         # System prompts
-├── services/              # Business logic orchestration
-│   ├── agent_service.py       # ReAct Agent
-│   ├── rag_service.py         # Hybrid Search + Generation
-│   ├── ingest_service.py      # Document Processing
-│   └── context_builder.py     # Context Assembly
-├── infrastructure/        # Provider implementations
-│   ├── database/
-│   │   ├── mongo_repository.py
-│   │   └── supabase_repository.py
-│   ├── llm/
-│   │   └── openai_provider.py
-│   ├── embeddings/
-│   │   └── openai_embedder.py
-│   └── ingestion/         # NEW: Parsing implementations
-│       ├── docling_parser.py
-│       └── docling_chunker.py
-├── endpoints/             # User interfaces
-│   ├── cli/
-│   │   ├── main.py
-│   │   └── ingest.py
-│   └── api/               # (Future) FastAPI
-└── bootstrap.py           # Dependency injection setup
-```
-
-## 6. Sequence Diagram: Query Flow
+## 4. Query Flow (ReAct Agent)
 
 ```mermaid
 sequenceDiagram
@@ -334,37 +132,30 @@ sequenceDiagram
     participant CLI as CLI
     participant Agent as AgentService
     participant RAG as RAGService
-    participant Repo as IRepository
     participant LLM as ILLMProvider
-    participant CB as ContextBuilder
 
     U->>CLI: Enter query
-    CLI->>Agent: process_query(query)
+    CLI->>Agent: chat(query)
     activate Agent
 
-    Agent->>Agent: Classify intent
-    alt Requires RAG
-        Agent->>RAG: answer(query)
-        activate RAG
-        RAG->>Repo: hybrid_search(query, vector)
-        Repo-->>RAG: SearchMatch[]
-        RAG->>CB: build_context(matches)
-        CB-->>RAG: formatted_context
-        RAG->>LLM: generate(context, query)
-        LLM-->>RAG: response
-        deactivate RAG
-        RAG-->>Agent: answer
-    else Direct response
-        Agent->>LLM: generate(query)
-        LLM-->>Agent: response
+    loop ReAct Loop (max 3 steps)
+        Agent->>LLM: generate_with_tools(scratchpad)
+        
+        alt Tool call: search_documents
+            Agent->>RAG: search(query)
+            RAG-->>Agent: SearchHit[]
+            Note over Agent: Append observation to scratchpad
+        else Response with FINAL:
+            Agent->>Agent: Extract final answer
+            Agent-->>CLI: AgentResponse
+        end
     end
 
-    Agent-->>CLI: formatted_response
     deactivate Agent
-    CLI-->>U: Display answer
+    CLI-->>U: Display answer + sources
 ```
 
-## 7. Sequence Diagram: Ingestion Flow
+## 5. Ingestion Flow
 
 ```mermaid
 sequenceDiagram
@@ -378,24 +169,71 @@ sequenceDiagram
     participant Repo as IRepository
 
     U->>CLI: Run ingestion
-    CLI->>Svc: ingest_documents(path)
+    CLI->>Svc: ingest_file(path)
     activate Svc
 
-    loop For each file
-        Svc->>Parser: parse(file_path)
-        Parser-->>Svc: raw_text
-        Svc->>Chunker: chunk(text, metadata)
-        Chunker-->>Svc: Chunk[]
-        
-        loop For each chunk batch
-            Svc->>Emb: embed(texts)
-            Emb-->>Svc: vectors[]
-            Svc->>Repo: upsert_chunks(chunks)
-            Repo-->>Svc: success
-        end
-    end
+    Svc->>Parser: parse(file_path)
+    Parser-->>Svc: (content, raw_doc)
+    
+    Svc->>Chunker: chunk_document(content, raw_doc)
+    Chunker-->>Svc: RawChunk[]
+
+    Svc->>Emb: get_embeddings(texts)
+    Emb-->>Svc: vectors[]
+
+    Svc->>Repo: save_document(doc)
+    Repo-->>Svc: doc_id
+
+    Svc->>Repo: save_chunks(chunks)
+    Repo-->>Svc: success
 
     deactivate Svc
     Svc-->>CLI: Ingestion complete
-    CLI-->>U: Summary report
 ```
+
+## 6. Folder Organization
+
+```
+src/
+├── core/
+│   ├── schemas/           # Document, Chunk, SearchHit
+│   ├── dtos/              # Data Transfer Objects
+│   ├── interfaces/        # Abstract contracts
+│   │   ├── repository.py
+│   │   ├── llm.py
+│   │   ├── embedder.py
+│   │   ├── parser.py
+│   │   └── chunker.py
+│   ├── exceptions.py      # Domain errors
+│   └── prompts.py         # System prompts
+├── services/
+│   ├── agent_service.py   # ReAct Agent
+│   ├── rag_service.py     # Hybrid Search + Generation
+│   ├── ingest_service.py  # Document Processing
+│   └── context_builder.py # Context Assembly
+├── infrastructure/
+│   ├── database/
+│   │   ├── mongo_repository.py
+│   │   └── supabase_repository.py
+│   ├── llm/
+│   │   └── openai_provider.py
+│   ├── embeddings/
+│   │   └── openai_embedder.py
+│   └── ingestion/
+│       ├── docling_parser.py
+│       └── docling_chunker.py
+├── endpoints/
+│   └── cli/
+│       ├── main.py
+│       └── ingest.py
+├── bootstrap.py           # Dependency injection
+└── settings.py            # Configuration
+```
+
+## 7. Related Documentation
+
+| Document | Description |
+|----------|-------------|
+| [Agent Service](agent-service.md) | ReAct loop implementation details |
+| [RAG Service](rag-service.md) | Hybrid search and generation |
+| [Context](context.md) | System context (C4 Level 1) |

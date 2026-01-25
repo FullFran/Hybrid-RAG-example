@@ -81,8 +81,8 @@ flowchart TB
 ## 4. Related Documentation
 
 - **[Architecture (C4 Level 2-3)](architecture.md)**: Container and Component diagrams
-- **[Agent Service Detail](agent_service_detail.md)**: ReAct agent implementation
-- **[RAG Service Detail](rag_service_detail.md)**: Hybrid search and generation flow
+- **[Agent Service](agent-service.md)**: ReAct agent with iterative tool use
+- **[RAG Service](rag-service.md)**: Hybrid search and generation flow
 
 ---
 

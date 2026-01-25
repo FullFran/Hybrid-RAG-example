@@ -1,8 +1,13 @@
 """
-AgentService - Vanilla ReAct Agent
+AgentService - ReAct Agent with Iterative Tool Use
 
-This agent decides whether to search the RAG or answer directly based on the query.
-Uses function calling when supported, falls back to prompt engineering otherwise.
+Implements the ReAct (Reasoning + Acting) pattern with a multi-step loop:
+1. Thought: Reason about what action to take
+2. Action: Execute a tool (search_documents)
+3. Observation: Process the tool result
+4. Repeat until ready to answer with FINAL:
+
+Falls back to prompt-based classification for LLMs without tool support.
 """
 
 import logging
@@ -27,7 +32,7 @@ class AgentResponse:
 
 
 class AgentService:
-    """ReAct-style agent that decides when to use RAG.
+    """ReAct agent that iterates tool use before answering.
 
     The agent uses a conservative approach: when in doubt, it searches.
     This prioritizes accuracy over speed.
@@ -76,6 +81,7 @@ Respond ONLY: SEARCH or DIRECT"""
         rag_service: RAGService,
         llm: ILLMProvider,
         conservative: bool = True,
+        max_steps: int = 3,
     ):
         """Initialize the agent.
 
@@ -87,6 +93,7 @@ Respond ONLY: SEARCH or DIRECT"""
         self.rag = rag_service
         self.llm = llm
         self.conservative = conservative
+        self.max_steps = max_steps
 
     async def chat(
         self,
@@ -106,11 +113,13 @@ Respond ONLY: SEARCH or DIRECT"""
         Returns:
             AgentResponse with response stream and context (searched, matches, etc.)
         """
-        # 1. Decide if we need to search
+        if self.llm.supports_tools():
+            return await self._react_loop(query, system_prompt, limit)
+
+        # Fallback: no tool support, keep legacy decision flow
         should_search, search_query = await self._decide(query)
 
         if should_search:
-            # 2a. Reformulate query for better search results
             optimized_query = await self._reformulate_query(search_query or query)
             logger.info(
                 f"Agent decided to SEARCH. Optimized query: '{optimized_query}'"
@@ -126,13 +135,110 @@ Respond ONLY: SEARCH or DIRECT"""
                 search_query=optimized_query,
                 matches=matches,
             )
-        else:
-            # 2b. Respond directly without RAG
-            logger.info("Agent decided to respond DIRECTLY (no RAG).")
-            response = await self.llm.generate_response(
-                system_prompt, query, stream=True
+
+        logger.info("Agent decided to respond DIRECTLY (no RAG).")
+        response = await self.llm.generate_response(system_prompt, query, stream=True)
+        return AgentResponse(response=response, searched=False)
+
+    async def _react_loop(
+        self, query: str, system_prompt: str, limit: int
+    ) -> AgentResponse:
+        """Run a ReAct loop with tool use and observations."""
+        react_system = (
+            "You are a ReAct agent with access to a knowledge base. "
+            "When the user asks for specific or personal information, you MUST use "
+            "the search_documents tool. If unsure, search. "
+            "After you have enough information, respond with 'FINAL:' followed by the answer."
+        )
+
+        full_system = f"{react_system}\n\nResponse rules:\n{system_prompt}"
+        scratchpad = ""
+        last_matches: List[SearchHit] = []
+        last_search_query: str | None = None
+
+        for step in range(self.max_steps):
+            user_prompt = (
+                f"User question: {query}\n\n"
+                f"Scratchpad:\n{scratchpad}\n\n"
+                "Decide next action."
             )
-            return AgentResponse(response=response, searched=False)
+
+            response = await self.llm.generate_with_tools(
+                system_prompt=full_system,
+                user_prompt=user_prompt,
+                tools=[self.SEARCH_TOOL],
+            )
+
+            if response.tool_calls:
+                tool_call = response.tool_calls[0]
+                search_query = tool_call.arguments.get("query", query)
+                optimized_query = await self._reformulate_query(search_query)
+                logger.info(
+                    f"ReAct step {step + 1}: SEARCH with query '{optimized_query}'"
+                )
+
+                hits, _ = await self.rag.search(optimized_query, limit=limit)
+                last_matches = hits
+                last_search_query = optimized_query
+
+                observation = self._format_observation(hits)
+                scratchpad += (
+                    "Thought: I should search the knowledge base.\n"
+                    f"Action: search_documents\n"
+                    f"Action Input: {optimized_query}\n"
+                    f"Observation:\n{observation}\n\n"
+                )
+                continue
+
+            if response.content:
+                content = response.content.strip()
+                final = self._extract_final_answer(content)
+                if final is None:
+                    final = content
+                return AgentResponse(
+                    response=final,
+                    searched=bool(last_matches),
+                    search_query=last_search_query,
+                    matches=last_matches,
+                )
+
+            logger.warning("ReAct step produced no tool calls or content.")
+
+        logger.warning("ReAct loop exhausted steps; generating final answer.")
+
+        if last_matches:
+            context_result = self.rag.context_builder.build(last_matches)
+            user_prompt = f"Context:\n{context_result.context}\n\nQuestion: {query}"
+            response = await self.llm.generate_response(
+                system_prompt, user_prompt, stream=True
+            )
+            return AgentResponse(
+                response=response,
+                searched=True,
+                search_query=last_search_query,
+                matches=last_matches,
+            )
+
+        response = await self.llm.generate_response(system_prompt, query, stream=True)
+        return AgentResponse(response=response, searched=False)
+
+    def _format_observation(self, hits: List[SearchHit]) -> str:
+        if not hits:
+            return "No relevant documents were found."
+
+        context_result = self.rag.context_builder.build(hits)
+        sources = "\n".join(
+            [f"- {hit.document_title} ({hit.document_source})" for hit in hits[:3]]
+        )
+        return (
+            f"Top sources:\n{sources}\n\nExtracted context:\n{context_result.context}"
+        )
+
+    def _extract_final_answer(self, content: str) -> str | None:
+        marker = "FINAL:"
+        if marker not in content:
+            return None
+        return content.split(marker, 1)[1].strip()
 
     async def _decide(self, query: str) -> tuple[bool, str | None]:
         """Decide if the query requires searching.

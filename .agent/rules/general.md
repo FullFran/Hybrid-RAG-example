@@ -9,20 +9,19 @@ activation_mode: always_on
 All AI agents working on this repository MUST adhere to the following rules:
 
 ## Documentation
-
 - All new technical documentation must be placed in the `docs/` directory.
 - Documentation files must use standard Markdown with clear heading hierarchies.
 - Use backticks for file names, directory names, and terminal commands.
 
-## Architecture & Implementation
+## Architecture
+- Do NOT create ad-hoc scripts in the root directory. Use the `scripts/` directory.
+- All new agent capabilities MUST be implemented as a "Skill" in the `.agent/skills/` directory.
+- Every `SKILL.md` file MUST contain a valid YAML frontmatter with `name` and `description`.
 
-- **Clean Architecture**: Follow the layers defined in `architecture.md`. Use interfaces from `src/core/interfaces/`.
-- **MongoDB vs Supabase**: Prioritize MongoDB implementation in `src/infrastructure/database/mongo_repository.py`. Keep `SupabaseRepository` only for reference or if explicitly requested.
-- **Reference Code**: Use `examples/` directory for PostgreSQL patterns, but DO NOT modify it. All new work must happen in `src/`.
-- **Specific Rules**: Adhere to `mongodb.md`, `docling.md`, and `pydantic-ai.md` for technical implementations.
+## Communication
+- When proposing major changes, update the `docs/framework-design.md` if applicable.
+- Always check the current `AGENTS.md` before starting a new task to understand the latest project norms.
 
 ## Automation
-
 - Use the provided scripts in `scripts/` for framework maintenance tasks.
 - If a workflow exists in `.agent/workflows/` for a task, prioritize using it.
-- **Rules Synchronization**: After adding or modifying rule files in `.agent/rules/`, update the summary in `GEMINI.md`.

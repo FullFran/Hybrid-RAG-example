@@ -1,8 +1,7 @@
 ---
 name: workflow-creator
-description: >
-  Skill to teach the agent how to create new Antigravity workflows.
-  Trigger: Use this skill when the user wants to automate a repetitive task using an Antigravity workflow.
+description: Create new Antigravity workflows to automate repetitive tasks. Use this when the user wants to formalize a multi-step process into an automated workflow.
+license: MIT
 ---
 
 # Workflow Creator Skill

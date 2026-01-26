@@ -6,28 +6,35 @@ requires-python = ">=3.10"
 dependencies = [
     "pydantic>=2.10.0",
     "pydantic-settings>=2.7.0",
-    "pydantic-ai>=0.1.0",
     "pymongo>=4.10.0",
     "openai>=1.58.0",
-    "docling>=2.14.0",
-    "docling-core>=2.4.0",
-    "transformers>=4.47.0",
     "rich>=13.9.0",
     "python-dotenv>=1.0.1",
     "aiofiles>=24.1.0",
-    "openai-whisper>=20240930",
     "supabase>=2.27.1",
     "motor>=3.7.1",
+]
+
+[project.optional-dependencies]
+ingestion = [
+    "docling>=2.14.0",
+    "docling-core>=2.4.0",
+    "transformers>=4.47.0",
+    "openai-whisper>=20240930",
 ]
 
 [build-system]
 requires = ["setuptools>=61.0"]
 build-backend = "setuptools.build_meta"
 
-[tool.uv]
-dev-dependencies = [
+[dependency-groups]
+dev = [
     "pytest>=8.3.0",
     "pytest-asyncio>=0.24.0",
     "black>=24.10.0",
     "ruff>=0.8.0",
 ]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"

@@ -50,7 +50,7 @@ sequenceDiagram
             Note over A: Append to scratchpad
         else content with "FINAL:"
             A->>A: _extract_final_answer()
-            A-->>U: AgentResponse(response, matches)
+            A-->>U: AgentResult(stream, matches)
         end
     end
 
@@ -62,7 +62,7 @@ sequenceDiagram
         A->>LLM: generate_response(query)
     end
 
-    A-->>U: AgentResponse
+    A-->>U: AgentResult
     deactivate A
 ```
 
@@ -146,8 +146,8 @@ flowchart TB
 
 ```python
 @dataclass
-class AgentResponse:
-    response: AsyncIterator[str] | str  # Streamed or complete response
+class AgentResult:
+    stream: AsyncIterator[str]          # Always a stream
     searched: bool = False              # Whether RAG was used
     search_query: str | None = None     # Last optimized query
     matches: List[SearchHit] = []       # Retrieved documents

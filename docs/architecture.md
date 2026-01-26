@@ -147,7 +147,7 @@ sequenceDiagram
             Note over Agent: Append observation to scratchpad
         else Response with FINAL:
             Agent->>Agent: Extract final answer
-            Agent-->>CLI: AgentResponse
+            Agent-->>CLI: AgentResult
         end
     end
 

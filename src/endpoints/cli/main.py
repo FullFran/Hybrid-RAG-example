@@ -68,13 +68,9 @@ async def main():
             console.print("[bold blue]Assistant:[/bold blue] ", end="")
 
             # --- Stream Response ---
-            response = result.response
-            if isinstance(response, str):
-                console.print(response)
-            else:
-                async for chunk in response:
-                    console.print(chunk, end="")
-                console.print()
+            async for chunk in result.stream:
+                console.print(chunk, end="")
+            console.print()
 
             # --- Show Sources ---
             if result.searched and result.matches:

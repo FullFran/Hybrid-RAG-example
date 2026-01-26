@@ -40,6 +40,15 @@ htmlcov/
 *~
 .DS_Store
 
+# Agent local config
+.opencode/
+.claude/skills
+opencode.json
+.agent/agents/
+.agent/rules/persona-*.md
+.agent/skills/*/*
+!.agent/skills/*/SKILL.md
+
 # UV
 uv.lock
 

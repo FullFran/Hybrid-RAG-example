@@ -1,7 +1,7 @@
 """Tests for AgentService ReAct implementation."""
 
 import pytest
-from src.services.agent_service import AgentService, AgentResponse
+from src.services.agent_service import AgentService, AgentResult
 from src.services.rag_service import RAGService
 from src.core.interfaces.llm import ToolResponse, ToolCall
 from src.core.schemas.chunk import Chunk
@@ -33,8 +33,8 @@ class TestReActLoop:
         assert result.search_query is not None
         # Calls: 1 tool call + 1 reformulate + 1 final answer
         assert len(mock_llm_with_tools.call_history) >= 2
-        assert isinstance(result.response, str)
-        assert "Based on the documents" in result.response
+        text = await result.collect()
+        assert "Based on the documents" in text
 
     @pytest.mark.asyncio
     async def test_react_loop_direct_answer(self):
@@ -59,8 +59,8 @@ class TestReActLoop:
         result = await agent.chat("What is 2+2?", "Be helpful")
 
         assert result.searched is False
-        assert isinstance(result.response, str)
-        assert "4" in result.response
+        text = await result.collect()
+        assert "4" in text
 
     @pytest.mark.asyncio
     async def test_react_loop_multiple_searches(self):
@@ -195,15 +195,15 @@ class TestFallbackMode:
         assert result.searched is False
 
 
-class TestAgentResponse:
-    """Tests for AgentResponse structure."""
+class TestAgentResult:
+    """Tests for AgentResult structure."""
 
     @pytest.mark.asyncio
     async def test_response_includes_matches(self, agent_service: AgentService):
         """Response should include search matches when RAG is used."""
         result = await agent_service.chat("Find documents", "Be helpful")
 
-        assert isinstance(result, AgentResponse)
+        assert isinstance(result, AgentResult)
         assert result.searched is True
         assert len(result.matches) > 0
         assert result.matches[0].document_title == "Test Document"

@@ -22,13 +22,17 @@ logger = logging.getLogger(__name__)
 
 
 @dataclass
-class AgentResponse:
+class AgentResult:
     """Response from the agent with context for explainability."""
 
-    response: AsyncIterator[str] | str
+    stream: AsyncIterator[str]
     searched: bool = False
     search_query: str | None = None
     matches: List[SearchHit] = field(default_factory=list)
+
+    async def collect(self) -> str:
+        """Consume the stream and return the full response as text."""
+        return "".join([chunk async for chunk in self.stream])
 
 
 class AgentService:
@@ -100,7 +104,7 @@ Respond ONLY: SEARCH or DIRECT"""
         query: str,
         system_prompt: str,
         limit: int = 5,
-    ) -> AgentResponse:
+    ) -> AgentResult:
         """Main entry point for the agent.
 
         Decides whether to search the RAG or respond directly based on the query.
@@ -111,7 +115,7 @@ Respond ONLY: SEARCH or DIRECT"""
             limit: Max number of documents to retrieve if searching.
 
         Returns:
-            AgentResponse with response stream and context (searched, matches, etc.)
+            AgentResult with response stream and context (searched, matches, etc.)
         """
         if self.llm.supports_tools():
             return await self._react_loop(query, system_prompt, limit)
@@ -129,8 +133,8 @@ Respond ONLY: SEARCH or DIRECT"""
                 optimized_query, system_prompt, limit=limit
             )
 
-            return AgentResponse(
-                response=response,
+            return AgentResult(
+                stream=self._ensure_stream(response),
                 searched=True,
                 search_query=optimized_query,
                 matches=matches,
@@ -138,11 +142,11 @@ Respond ONLY: SEARCH or DIRECT"""
 
         logger.info("Agent decided to respond DIRECTLY (no RAG).")
         response = await self.llm.generate_response(system_prompt, query, stream=True)
-        return AgentResponse(response=response, searched=False)
+        return AgentResult(stream=self._ensure_stream(response), searched=False)
 
     async def _react_loop(
         self, query: str, system_prompt: str, limit: int
-    ) -> AgentResponse:
+    ) -> AgentResult:
         """Run a ReAct loop with tool use and observations."""
         react_system = (
             "You are a ReAct agent with access to a knowledge base. "
@@ -195,8 +199,8 @@ Respond ONLY: SEARCH or DIRECT"""
                 final = self._extract_final_answer(content)
                 if final is None:
                     final = content
-                return AgentResponse(
-                    response=final,
+                return AgentResult(
+                    stream=self._ensure_stream(final),
                     searched=bool(last_matches),
                     search_query=last_search_query,
                     matches=last_matches,
@@ -212,15 +216,25 @@ Respond ONLY: SEARCH or DIRECT"""
             response = await self.llm.generate_response(
                 system_prompt, user_prompt, stream=True
             )
-            return AgentResponse(
-                response=response,
+            return AgentResult(
+                stream=self._ensure_stream(response),
                 searched=True,
                 search_query=last_search_query,
                 matches=last_matches,
             )
 
         response = await self.llm.generate_response(system_prompt, query, stream=True)
-        return AgentResponse(response=response, searched=False)
+        return AgentResult(stream=self._ensure_stream(response), searched=False)
+
+    def _ensure_stream(self, response: AsyncIterator[str] | str) -> AsyncIterator[str]:
+        """Normalize responses to an async stream."""
+        if isinstance(response, str):
+
+            async def _stream() -> AsyncIterator[str]:
+                yield response
+
+            return _stream()
+        return response
 
     def _format_observation(self, hits: List[SearchHit]) -> str:
         if not hits:

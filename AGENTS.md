@@ -146,3 +146,44 @@
 ## External Rules Files
 - Cursor rules: none found in `.cursor/rules/` or `.cursorrules`.
 - Copilot rules: none found in `.github/copilot-instructions.md`.
+
+## Available Skills
+
+| Skill | Description | Path |
+|------|------|------|
+| `ai-orchestration-patterns` | Apply AI orchestration patterns (routing, tool use, ReAct, fallbacks) to design reliable agent flows. | [.agents/skills/ai-orchestration-patterns/SKILL.md](.agents/skills/ai-orchestration-patterns/SKILL.md) |
+| `architecture-decision-record` | Help the team document and maintain Architecture Decision Records (ADRs). | [.agents/skills/architecture-decision-record/SKILL.md](.agents/skills/architecture-decision-record/SKILL.md) |
+| `clean-architecture` | Apply Clean Architecture boundaries, dependency rules, and layer responsibilities when designing or changing code in this repository. | [.agents/skills/clean-architecture/SKILL.md](.agents/skills/clean-architecture/SKILL.md) |
+| `docling` | Expert guidance on document processing with Docling and audio transcription with Whisper. | [.agents/skills/docling/SKILL.md](.agents/skills/docling/SKILL.md) |
+| `docs-standard` | Standard for creating technical documentation in this repository. Use this when writing new documentation in docs/ to ensure consistent hierarchy and formatting. | [.agents/skills/docs-standard/SKILL.md](.agents/skills/docs-standard/SKILL.md) |
+| `mermaid-diagrams` | Expert guidance on creating accurate, visually polished Mermaid diagrams for architecture documentation. | [.agents/skills/mermaid-diagrams/SKILL.md](.agents/skills/mermaid-diagrams/SKILL.md) |
+| `mongodb` | Expert guidance on MongoDB implementation for RAG, including aggregation pipelines and search patterns. | [.agents/skills/mongodb/SKILL.md](.agents/skills/mongodb/SKILL.md) |
+| `pydantic-ai` | Expert guidance on building agents and tools with Pydantic AI. | [.agents/skills/pydantic-ai/SKILL.md](.agents/skills/pydantic-ai/SKILL.md) |
+| `python-async-patterns` | Best practices for async Python code, avoiding common pitfalls like await precedence bugs and sync-in-async anti-patterns. | [.agents/skills/python-async-patterns/SKILL.md](.agents/skills/python-async-patterns/SKILL.md) |
+| `skill-creator` | Create and initialize new Agent Skills following the agentskills.io standard. Use this when you need to modularize a new capability for the AI agent. | [.agents/skills/skill-creator/SKILL.md](.agents/skills/skill-creator/SKILL.md) |
+| `software-architecture` | Guide architecture decisions, document tradeoffs, and align designs with system goals and constraints. | [.agents/skills/software-architecture/SKILL.md](.agents/skills/software-architecture/SKILL.md) |
+| `supabase` | Expert guidance on Supabase/PostgreSQL implementation for RAG, including pgvector semantic search and full-text search. | [.agents/skills/supabase/SKILL.md](.agents/skills/supabase/SKILL.md) |
+| `workflow-creator` | Create new Antigravity workflows to automate repetitive tasks. Use this when the user wants to formalize a multi-step process into an automated workflow. | [.agents/skills/workflow-creator/SKILL.md](.agents/skills/workflow-creator/SKILL.md) |
+
+
+## Workflows \(Slash Commands\)
+
+| Workflow | Description | Path |
+|------|------|------|
+| `commit` | Create a new git commit for uncommitted changes following atomic standards | [.agents/workflows/commit.md](.agents/workflows/commit.md) |
+| `create-prd` | Create a Product Requirements Document from conversation | [.agents/workflows/create-prd.md](.agents/workflows/create-prd.md) |
+| `create-skill` | Automated workflow to create a new AI Skill | [.agents/workflows/create-skill.md](.agents/workflows/create-skill.md) |
+| `create-workflow` | Automated workflow to create a new slash command workflow | [.agents/workflows/create-workflow.md](.agents/workflows/create-workflow.md) |
+| `debug` | Structured debugging process to identify and fix bugs | [.agents/workflows/debug.md](.agents/workflows/debug.md) |
+| `document-architecture` | Create architecture diagrams using the mermaid-diagrams skill | [.agents/workflows/document-architecture.md](.agents/workflows/document-architecture.md) |
+| `init-project` | Initialize the RAG project environment | [.agents/workflows/init-project.md](.agents/workflows/init-project.md) |
+| `review` | Perform a deep code review of pending changes | [.agents/workflows/review.md](.agents/workflows/review.md) |
+
+
+## Personas
+
+| Persona | Description | Path |
+|------|------|------|
+| `code-ninja` | Concise, code-first persona for fast implementation. | [.agents/agents/code-ninja.md](.agents/agents/code-ninja.md) |
+| `senior-architect` | Senior Architect persona - helpful first, challenging when it matters. | [.agents/agents/senior-architect.md](.agents/agents/senior-architect.md) |
+

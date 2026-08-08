@@ -1,12 +1,12 @@
 from abc import ABC, abstractmethod
-from typing import Any, Optional
+from typing import Any
 
 
 class IParser(ABC):
     """Interface for document parsing."""
 
     @abstractmethod
-    async def parse(self, file_path: str) -> tuple[str, Optional[Any]]:
+    async def parse(self, file_path: str) -> tuple[str, Any | None]:
         """
         Parse a document and return its content as markdown and an optional raw document object.
 
@@ -16,4 +16,3 @@ class IParser(ABC):
         Returns:
             Tuple of (markdown_content, raw_document).
         """
-        pass

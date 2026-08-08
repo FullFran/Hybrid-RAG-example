@@ -8,7 +8,6 @@ Builds context strings from search hits with:
 
 import logging
 from dataclasses import dataclass, field
-from typing import List
 
 from src.core.schemas.search import SearchHit
 
@@ -30,7 +29,7 @@ class ContextResult:
     """Result from context building."""
 
     context: str
-    citations: List[Citation] = field(default_factory=list)
+    citations: list[Citation] = field(default_factory=list)
     truncated: bool = False
     total_hits: int = 0
     included_hits: int = 0
@@ -56,7 +55,7 @@ class ContextBuilder:
         self.max_chars = max_chars
         self.max_per_document = max_per_document
 
-    def build(self, hits: List[SearchHit]) -> ContextResult:
+    def build(self, hits: list[SearchHit]) -> ContextResult:
         """Build context from search hits.
 
         Args:

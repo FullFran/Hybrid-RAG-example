@@ -38,3 +38,30 @@ dev = [
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 asyncio_default_fixture_loop_scope = "function"
+
+[tool.ruff]
+target-version = "py310"
+
+[tool.ruff.lint]
+# Conjunto explícito y no el de por defecto: los valores por defecto de ruff
+# cambian entre versiones, y un CI que depende de ellos se rompe solo el día
+# que alguien actualiza la herramienta.
+select = [
+    "E",   # pycodestyle
+    "F",   # pyflakes
+    "I",   # isort
+    "UP",  # pyupgrade
+    "PIE", # flake8-pie
+    "SIM", # flake8-simplify
+]
+
+[tool.ruff.lint.per-file-ignores]
+# Los ejemplos priorizan la legibilidad didáctica sobre el estilo idiomático.
+"examples/*" = ["E501"]
+# Los prompts son datos, no código. Partir una línea de prompt para que quepa
+# en 88 columnas cambia el texto que recibe el modelo y empeora la lectura del
+# propio prompt, que es lo que aquí importa revisar.
+"src/core/prompts.py" = ["E501"]
+"src/services/agent_service.py" = ["E501"]
+"src/endpoints/cli/main.py" = ["E501"]
+"src/core/interfaces/parser.py" = ["E501"]

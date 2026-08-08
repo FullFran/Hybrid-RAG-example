@@ -11,8 +11,8 @@ Falls back to prompt-based classification for LLMs without tool support.
 """
 
 import logging
+from collections.abc import AsyncIterator
 from dataclasses import dataclass, field
-from typing import AsyncIterator, List
 
 from src.core.interfaces.llm import ILLMProvider
 from src.core.schemas.search import SearchHit
@@ -28,7 +28,7 @@ class AgentResult:
     stream: AsyncIterator[str]
     searched: bool = False
     search_query: str | None = None
-    matches: List[SearchHit] = field(default_factory=list)
+    matches: list[SearchHit] = field(default_factory=list)
 
     async def collect(self) -> str:
         """Consume the stream and return the full response as text."""
@@ -157,7 +157,7 @@ Respond ONLY: SEARCH or DIRECT"""
 
         full_system = f"{react_system}\n\nResponse rules:\n{system_prompt}"
         scratchpad = ""
-        last_matches: List[SearchHit] = []
+        last_matches: list[SearchHit] = []
         last_search_query: str | None = None
 
         for step in range(self.max_steps):
@@ -236,7 +236,7 @@ Respond ONLY: SEARCH or DIRECT"""
             return _stream()
         return response
 
-    def _format_observation(self, hits: List[SearchHit]) -> str:
+    def _format_observation(self, hits: list[SearchHit]) -> str:
         if not hits:
             return "No relevant documents were found."
 

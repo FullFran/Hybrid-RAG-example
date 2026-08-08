@@ -2,9 +2,10 @@ name: CI
 
 on:
   push:
-    branches: [main]
+    # dev-fran es la rama por defecto de este repositorio, no main.
+    branches: [dev-fran, main]
+  # Sin filtro de rama: una PR debe validarse apunte a donde apunte.
   pull_request:
-    branches: [main]
 
 permissions:
   contents: read

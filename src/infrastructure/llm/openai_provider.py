@@ -1,5 +1,5 @@
 import json
-from typing import AsyncIterator, List
+from collections.abc import AsyncIterator
 
 import openai
 
@@ -29,7 +29,7 @@ class OpenAILLMProvider(ILLMProvider):
             )
             return response.choices[0].message.content
 
-    async def _stream_response(self, messages: List[dict]) -> AsyncIterator[str]:
+    async def _stream_response(self, messages: list[dict]) -> AsyncIterator[str]:
         stream = await self.client.chat.completions.create(
             model=self.model, messages=messages, stream=True
         )

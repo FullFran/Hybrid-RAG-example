@@ -1,6 +1,7 @@
 from abc import ABC, abstractmethod
+from collections.abc import AsyncIterator
 from dataclasses import dataclass, field
-from typing import Any, AsyncIterator
+from typing import Any
 
 
 @dataclass
@@ -27,7 +28,6 @@ class ILLMProvider(ABC):
         self, system_prompt: str, user_prompt: str, stream: bool = False
     ) -> AsyncIterator[str] | str:
         """Generate a response from the LLM."""
-        pass
 
     def supports_tools(self) -> bool:
         """Check if the provider supports function calling / tools.

@@ -1,7 +1,7 @@
 import logging
 import os
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 
 from src.core.interfaces.parser import IParser
 
@@ -15,7 +15,7 @@ class DoclingParser(IParser):
         """Initialize the Docling parser."""
         self._initialized = False
 
-    async def parse(self, file_path: str) -> tuple[str, Optional[Any]]:
+    async def parse(self, file_path: str) -> tuple[str, Any | None]:
         """
         Parse a document using Docling.
 
@@ -52,7 +52,9 @@ class DoclingParser(IParser):
                 from docling.document_converter import DocumentConverter
 
                 logger.info(
-                    f"Converting {file_ext} file using Docling: {os.path.basename(file_path)}"
+                    "Converting %s file using Docling: %s",
+                    file_ext,
+                    os.path.basename(file_path),
                 )
 
                 # In a real production scenario, we might want to reuse the converter
@@ -72,7 +74,7 @@ class DoclingParser(IParser):
                 logger.error(f"Failed to convert {file_path} with Docling: {e}")
                 logger.warning(f"Falling back to raw text extraction for {file_path}")
                 try:
-                    with open(file_path, "r", encoding="utf-8") as f:
+                    with open(file_path, encoding="utf-8") as f:
                         return (f.read(), None)
                 except Exception:
                     return (
@@ -83,18 +85,18 @@ class DoclingParser(IParser):
         # Text-based formats
         else:
             try:
-                with open(file_path, "r", encoding="utf-8") as f:
+                with open(file_path, encoding="utf-8") as f:
                     return (f.read(), None)
             except UnicodeDecodeError:
-                with open(file_path, "r", encoding="latin-1") as f:
+                with open(file_path, encoding="latin-1") as f:
                     return (f.read(), None)
 
-    async def _transcribe_audio(self, file_path: str) -> tuple[str, Optional[Any]]:
+    async def _transcribe_audio(self, file_path: str) -> tuple[str, Any | None]:
         """Transcribe audio file using Whisper ASR via Docling."""
         try:
+            from docling.datamodel import asr_model_specs
             from docling.datamodel.base_models import InputFormat
             from docling.datamodel.pipeline_options import AsrPipelineOptions
-            from docling.datamodel import asr_model_specs
             from docling.document_converter import AudioFormatOption, DocumentConverter
             from docling.pipeline.asr_pipeline import AsrPipeline
 
@@ -125,8 +127,6 @@ class DoclingParser(IParser):
             return (markdown_content, result.document)
 
         except Exception as e:
-            logger.error(f"Failed to transcribe {file_path} with Whisper ASR: {e}")
-            return (
-                f"[Error: Could not transcribe audio file {os.path.basename(file_path)}]",
-                None,
-            )
+            logger.error("Failed to transcribe %s with Whisper ASR: %s", file_path, e)
+            filename = os.path.basename(file_path)
+            return (f"[Error: Could not transcribe audio file {filename}]", None)

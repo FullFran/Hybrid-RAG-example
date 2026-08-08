@@ -1,6 +1,7 @@
 import logging
-from typing import AsyncIterator, List
+from collections.abc import AsyncIterator
 
+from src.core.dtos import SearchOptions
 from src.core.interfaces.embedder import IEmbedder
 from src.core.interfaces.llm import ILLMProvider
 from src.core.interfaces.repository import IRepository
@@ -19,28 +20,44 @@ class RAGService:
         llm: ILLMProvider,
         embedder: IEmbedder,
         context_builder: ContextBuilder = None,
+        default_options: SearchOptions | None = None,
     ):
         self.repository = repository
         self.llm = llm
         self.embedder = embedder
         self.context_builder = context_builder or ContextBuilder()
+        # Retrieval policy lives here, in the application layer, not inside the
+        # adapter. Callers may override it per query.
+        self.default_options = default_options or SearchOptions()
 
     async def search(
-        self, query: str, limit: int = 5, search_type: SearchType = SearchType.HYBRID
-    ) -> tuple[List[SearchHit], str]:
+        self,
+        query: str,
+        limit: int = 5,
+        search_type: SearchType = SearchType.HYBRID,
+        options: SearchOptions | None = None,
+    ) -> tuple[list[SearchHit], str]:
         """Orchestrate search across multiple methods and merge results.
 
         Args:
             query: Search query (should be pre-optimized by caller).
             limit: Maximum number of results to return.
             search_type: Type of search to perform.
+            options: Per-query retrieval options. Falls back to the service
+                default. The similarity threshold travels from here down to
+                the adapter, so the same repository can serve a strict query
+                and a permissive one without being reconfigured.
 
         Returns:
             Tuple of (hits, query_used).
         """
+        opts = options or self.default_options
+
         if search_type == SearchType.SEMANTIC:
             vector = await self.embedder.get_embedding(query)
-            results = await self.repository.semantic_search(vector, limit)
+            results = await self.repository.semantic_search(
+                vector, limit, opts.threshold
+            )
             return results, query
         elif search_type == SearchType.TEXT:
             results = await self.repository.text_search(query, limit)
@@ -49,7 +66,9 @@ class RAGService:
             logger.debug(f"Hybrid search with query: {query}")
 
             vector = await self.embedder.get_embedding(query)
-            semantic_results = await self.repository.semantic_search(vector, limit * 2)
+            semantic_results = await self.repository.semantic_search(
+                vector, limit * 2, opts.threshold
+            )
             text_results = await self.repository.text_search(query, limit * 2)
             merged = self._reciprocal_rank_fusion(semantic_results, text_results)
             logger.debug(f"Hybrid search merged into {len(merged)} results")
@@ -57,10 +76,10 @@ class RAGService:
 
     def _reciprocal_rank_fusion(
         self,
-        semantic_hits: List[SearchHit],
-        text_hits: List[SearchHit],
+        semantic_hits: list[SearchHit],
+        text_hits: list[SearchHit],
         k: int = 60,
-    ) -> List[SearchHit]:
+    ) -> list[SearchHit]:
         """Merge search results using Reciprocal Rank Fusion.
 
         Creates NEW SearchHit objects with fusion_score set.
@@ -111,7 +130,7 @@ class RAGService:
 
     async def answer(
         self, query: str, system_prompt: str, limit: int = 5
-    ) -> tuple[AsyncIterator[str] | str, List[SearchHit], str]:
+    ) -> tuple[AsyncIterator[str] | str, list[SearchHit], str]:
         """Find relevant info and generate an answer.
 
         Returns:

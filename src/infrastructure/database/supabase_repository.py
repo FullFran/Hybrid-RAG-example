@@ -8,11 +8,11 @@ asyncio.to_thread() to avoid blocking the event loop.
 
 import asyncio
 import logging
-from typing import List
 
 from supabase import Client, create_client
 
 from src.core.exceptions import ChunkSaveError, DocumentSaveError, SearchError
+from src.core.interfaces.admin_repository import IAdminRepository
 from src.core.interfaces.repository import IRepository
 from src.core.schemas.chunk import Chunk
 from src.core.schemas.document import Document
@@ -20,17 +20,23 @@ from src.core.schemas.search import SearchHit
 
 logger = logging.getLogger(__name__)
 
+# Last-resort value when no caller supplies a threshold. It is deliberately a
+# module constant and not instance state: the similarity cut-off is a retrieval
+# policy that belongs to the application layer (``SearchOptions``), and an
+# adapter that stores its own copy silently overrides whatever the caller
+# decided.
+DEFAULT_SEMANTIC_THRESHOLD = 0.3
 
-class SupabaseRepository(IRepository):
+
+class SupabaseRepository(IRepository, IAdminRepository):
     """Supabase/PostgreSQL implementation of the repository interface.
 
     Uses pgvector for semantic search and PostgreSQL full-text search.
     All sync operations are wrapped with asyncio.to_thread() to be non-blocking.
     """
 
-    def __init__(self, url: str, key: str, threshold: float = 0.3):
+    def __init__(self, url: str, key: str):
         self.client: Client = create_client(url, key)
-        self.threshold = threshold
 
     async def save_document(self, document: Document) -> str:
         """Save a document and return its ID.
@@ -51,7 +57,7 @@ class SupabaseRepository(IRepository):
             )
         return str(result.data[0]["id"])
 
-    async def save_chunks(self, chunks: List[Chunk]) -> None:
+    async def save_chunks(self, chunks: list[Chunk]) -> None:
         """Save a batch of document chunks using upsert.
 
         Uses upsert with (document_id, chunk_index) constraint to prevent
@@ -72,9 +78,11 @@ class SupabaseRepository(IRepository):
 
         # Use upsert to handle re-ingestion without duplicates
         result = await asyncio.to_thread(
-            lambda: self.client.table("chunks")
-            .upsert(chunk_dicts, on_conflict="document_id,chunk_index")
-            .execute()
+            lambda: (
+                self.client.table("chunks")
+                .upsert(chunk_dicts, on_conflict="document_id,chunk_index")
+                .execute()
+            )
         )
 
         if not result.data:
@@ -85,19 +93,25 @@ class SupabaseRepository(IRepository):
             )
 
     async def semantic_search(
-        self, vector: List[float], limit: int, threshold: float | None = None
-    ) -> List[SearchHit]:
+        self, vector: list[float], limit: int, threshold: float | None = None
+    ) -> list[SearchHit]:
         """Perform semantic search using pgvector via RPC.
 
         Args:
             vector: Query embedding vector.
             limit: Maximum results to return.
-            threshold: Optional override for similarity threshold.
+            threshold: Similarity threshold for this query. Comes from
+                ``SearchOptions`` in the application layer. When omitted, the
+                adapter falls back to ``DEFAULT_SEMANTIC_THRESHOLD`` rather
+                than to configured state of its own: the adapter no longer
+                holds a policy, only a last-resort constant.
 
         Returns:
             List of SearchHit with semantic_score populated.
         """
-        effective_threshold = threshold if threshold is not None else self.threshold
+        effective_threshold = (
+            threshold if threshold is not None else DEFAULT_SEMANTIC_THRESHOLD
+        )
         rpc_params = {
             "query_embedding": vector,
             "match_threshold": effective_threshold,
@@ -105,7 +119,9 @@ class SupabaseRepository(IRepository):
         }
 
         logger.debug(
-            f"Semantic search: vector_dim={len(vector)}, threshold={effective_threshold}"
+            "Semantic search: vector_dim=%s, threshold=%s",
+            len(vector),
+            effective_threshold,
         )
 
         try:
@@ -136,7 +152,7 @@ class SupabaseRepository(IRepository):
             )
         return hits
 
-    async def text_search(self, query: str, limit: int) -> List[SearchHit]:
+    async def text_search(self, query: str, limit: int) -> list[SearchHit]:
         """Perform full-text search using PostgreSQL RPC.
 
         Returns:
@@ -179,19 +195,33 @@ class SupabaseRepository(IRepository):
             )
         return hits
 
+    async def get_stats(self) -> dict:
+        """Return document and chunk counts."""
+        docs = await asyncio.to_thread(
+            lambda: self.client.table("documents").select("id", count="exact").execute()
+        )
+        chunks = await asyncio.to_thread(
+            lambda: self.client.table("chunks").select("id", count="exact").execute()
+        )
+        return {"document_count": docs.count, "chunk_count": chunks.count}
+
     async def clean_all(self) -> None:
         """Clear all documents and chunks from Supabase."""
         await asyncio.to_thread(
-            lambda: self.client.table("chunks")
-            .delete()
-            .neq("id", "00000000-0000-0000-0000-000000000000")
-            .execute()
+            lambda: (
+                self.client.table("chunks")
+                .delete()
+                .neq("id", "00000000-0000-0000-0000-000000000000")
+                .execute()
+            )
         )
         await asyncio.to_thread(
-            lambda: self.client.table("documents")
-            .delete()
-            .neq("id", "00000000-0000-0000-0000-000000000000")
-            .execute()
+            lambda: (
+                self.client.table("documents")
+                .delete()
+                .neq("id", "00000000-0000-0000-0000-000000000000")
+                .execute()
+            )
         )
 
     async def close(self) -> None:
@@ -200,4 +230,3 @@ class SupabaseRepository(IRepository):
         Supabase client doesn't require explicit closing, but this hook
         exists for interface consistency.
         """
-        pass

@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from pydantic import BaseModel, Field
 
@@ -11,11 +11,11 @@ class Chunk(BaseModel):
     The id field is database-agnostic - transformations happen in repositories.
     """
 
-    id: Optional[str] = None
+    id: str | None = None
     document_id: str
     content: str
-    embedding: Optional[List[float]] = None
+    embedding: list[float] | None = None
     chunk_index: int
-    metadata: Dict[str, Any] = Field(default_factory=dict)
-    token_count: Optional[int] = None
+    metadata: dict[str, Any] = Field(default_factory=dict)
+    token_count: int | None = None
     created_at: datetime = Field(default_factory=datetime.now)

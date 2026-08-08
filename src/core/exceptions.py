@@ -8,8 +8,6 @@ They are raised by infrastructure layer and caught by service/endpoint layers.
 class RepositoryError(Exception):
     """Base exception for repository operations."""
 
-    pass
-
 
 class DocumentSaveError(RepositoryError):
     """Raised when a document fails to save to the database."""

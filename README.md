@@ -1,5 +1,8 @@
 # Hybrid RAG Agent - Clean Architecture
 
+[![CI](https://github.com/FullFran/Hybrid-RAG-example/actions/workflows/ci.yml/badge.svg)](https://github.com/FullFran/Hybrid-RAG-example/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+
 Modern and modular RAG (Retrieval-Augmented Generation) system designed under **Clean Architecture** principles. This system enables intelligent document retrieval with total independence from infrastructure providers (Database, LLM, or Embeddings).
 
 ## 🏛️ Architecture: Clean RAG Design

@@ -6,7 +6,6 @@ other database that supports vector search.
 """
 
 from abc import ABC, abstractmethod
-from typing import List
 
 from src.core.schemas.chunk import Chunk
 from src.core.schemas.document import Document
@@ -18,6 +17,12 @@ class IRepository(ABC):
 
     All methods are async to allow non-blocking I/O operations.
     Implementations should handle connection management internally.
+
+    Destructive operations live in ``IAdminRepository``, not here. Anything
+    that depends on this interface can persist and retrieve, and cannot wipe
+    the database -- a capability nothing in the retrieval path needs, and one
+    that is far too easy to reach for by accident when it sits on the same
+    object.
     """
 
     @abstractmethod
@@ -34,10 +39,9 @@ class IRepository(ABC):
         Raises:
             DocumentSaveError: If the document fails to save.
         """
-        pass
 
     @abstractmethod
-    async def save_chunks(self, chunks: List[Chunk]) -> None:
+    async def save_chunks(self, chunks: list[Chunk]) -> None:
         """Save a batch of document chunks.
 
         Args:
@@ -46,12 +50,11 @@ class IRepository(ABC):
         Raises:
             ChunkSaveError: If chunks fail to save.
         """
-        pass
 
     @abstractmethod
     async def semantic_search(
-        self, vector: List[float], limit: int, threshold: float | None = None
-    ) -> List[SearchHit]:
+        self, vector: list[float], limit: int, threshold: float | None = None
+    ) -> list[SearchHit]:
         """Perform semantic vector search.
 
         Args:
@@ -66,10 +69,9 @@ class IRepository(ABC):
         Raises:
             SearchError: If database query fails.
         """
-        pass
 
     @abstractmethod
-    async def text_search(self, query: str, limit: int) -> List[SearchHit]:
+    async def text_search(self, query: str, limit: int) -> list[SearchHit]:
         """Perform full-text keyword search.
 
         Args:
@@ -83,16 +85,3 @@ class IRepository(ABC):
         Raises:
             SearchError: If database query fails.
         """
-        pass
-
-    @abstractmethod
-    async def clean_all(self) -> None:
-        """Clear all documents and chunks.
-
-        Use with caution - this operation is irreversible.
-        Typically used for testing or resetting the database.
-
-        Raises:
-            RepositoryError: If cleanup fails.
-        """
-        pass

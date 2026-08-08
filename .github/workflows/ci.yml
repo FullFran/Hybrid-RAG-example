@@ -1,0 +1,49 @@
+name: CI
+
+on:
+  push:
+    # dev-fran es la rama por defecto de este repositorio, no main.
+    branches: [dev-fran, main]
+  # Sin filtro de rama: una PR debe validarse apunte a donde apunte.
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: Lint y tests
+    runs-on: ubuntu-latest
+
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ['3.10', '3.12']
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Instalar uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+
+      # Un entorno por versión de la matriz. Sin él, uv resolvería contra el
+      # Python del sistema y las dos jobs correrían sobre el mismo intérprete.
+      - name: Crear entorno con Python ${{ matrix.python-version }}
+        run: uv venv --python ${{ matrix.python-version }}
+
+      # Sin el extra 'ingestion' a propósito: docling y transformers son
+      # opcionales, y el CI comprueba justamente que el proyecto se importa y
+      # se testea sin ellos.
+      - name: Instalar dependencias
+        run: uv pip install -e . 'pytest>=8.3' 'pytest-asyncio>=0.24' 'ruff>=0.8'
+
+      - name: Comprobar formato
+        run: uv run ruff format --check src/ tests/
+
+      - name: Comprobar lint
+        run: uv run ruff check src/ tests/
+
+      - name: Ejecutar tests
+        run: uv run pytest -q

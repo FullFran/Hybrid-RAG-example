@@ -1,25 +1,25 @@
 """Pytest fixtures and mocks for testing."""
 
 import pytest
-from typing import List, Optional
 
-from src.core.interfaces.llm import ILLMProvider, ToolResponse, ToolCall
-from src.core.interfaces.repository import IRepository
+from src.core.interfaces.admin_repository import IAdminRepository
 from src.core.interfaces.embedder import IEmbedder
+from src.core.interfaces.llm import ILLMProvider, ToolCall, ToolResponse
+from src.core.interfaces.repository import IRepository
 from src.core.schemas.chunk import Chunk
 from src.core.schemas.search import SearchHit
+from src.services.agent_service import AgentService
 from src.services.context_builder import ContextBuilder
 from src.services.rag_service import RAGService
-from src.services.agent_service import AgentService
 
 
 class MockLLMWithTools(ILLMProvider):
     """LLM that supports tools and follows a scripted response sequence."""
 
-    def __init__(self, responses: Optional[List[ToolResponse]] = None):
-        self.responses: List[ToolResponse] = responses if responses is not None else []
+    def __init__(self, responses: list[ToolResponse] | None = None):
+        self.responses: list[ToolResponse] = responses if responses is not None else []
         self.call_index = 0
-        self.call_history: List[tuple] = []
+        self.call_history: list[tuple] = []
 
     def supports_tools(self) -> bool:
         return True
@@ -46,7 +46,7 @@ class MockLLMNoTools(ILLMProvider):
 
     def __init__(self, classifier_response: str = "SEARCH"):
         self.classifier_response = classifier_response
-        self.call_history: List[tuple] = []
+        self.call_history: list[tuple] = []
 
     def supports_tools(self) -> bool:
         return False
@@ -65,16 +65,16 @@ class MockRepository(IRepository):
 
     def __init__(
         self,
-        semantic_results: Optional[List[SearchHit]] = None,
-        text_results: Optional[List[SearchHit]] = None,
+        semantic_results: list[SearchHit] | None = None,
+        text_results: list[SearchHit] | None = None,
     ):
-        self._semantic_results: List[SearchHit] = (
+        self._semantic_results: list[SearchHit] = (
             semantic_results if semantic_results is not None else []
         )
-        self._text_results: List[SearchHit] = (
+        self._text_results: list[SearchHit] = (
             text_results if text_results is not None else []
         )
-        self.search_history: List[tuple] = []
+        self.search_history: list[tuple] = []
 
     async def save_document(self, document) -> str:
         return "doc-test-id"
@@ -83,26 +83,38 @@ class MockRepository(IRepository):
         pass
 
     async def semantic_search(
-        self, vector: List[float], limit: int, threshold: Optional[float] = None
-    ) -> List[SearchHit]:
-        self.search_history.append(("semantic", limit))
+        self, vector: list[float], limit: int, threshold: float | None = None
+    ) -> list[SearchHit]:
+        # The threshold is recorded so tests can assert that retrieval policy
+        # actually reaches the adapter instead of being silently dropped.
+        self.search_history.append(("semantic", limit, threshold))
         return self._semantic_results[:limit]
 
-    async def text_search(self, query: str, limit: int) -> List[SearchHit]:
+    async def text_search(self, query: str, limit: int) -> list[SearchHit]:
         self.search_history.append(("text", query, limit))
         return self._text_results[:limit]
 
+
+class FakeAdminRepository(IAdminRepository):
+    """Admin double. Records that destructive access was actually used."""
+
+    def __init__(self) -> None:
+        self.clean_all_calls = 0
+
     async def clean_all(self) -> None:
-        pass
+        self.clean_all_calls += 1
+
+    async def get_stats(self) -> dict:
+        return {"document_count": 0, "chunk_count": 0}
 
 
 class MockEmbedder(IEmbedder):
     """Mock embedder that returns fixed vectors."""
 
-    async def get_embedding(self, text: str) -> List[float]:
+    async def get_embedding(self, text: str) -> list[float]:
         return [0.1] * 1536
 
-    async def get_embeddings(self, texts: List[str]) -> List[List[float]]:
+    async def get_embeddings(self, texts: list[str]) -> list[list[float]]:
         return [[0.1] * 1536 for _ in texts]
 
 

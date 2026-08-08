@@ -1,17 +1,18 @@
 """Tests for AgentService ReAct implementation."""
 
 import pytest
-from src.services.agent_service import AgentService, AgentResult
-from src.services.rag_service import RAGService
-from src.core.interfaces.llm import ToolResponse, ToolCall
+
+from src.core.interfaces.llm import ToolCall, ToolResponse
 from src.core.schemas.chunk import Chunk
 from src.core.schemas.search import SearchHit
+from src.services.agent_service import AgentResult, AgentService
 from src.services.context_builder import ContextBuilder
+from src.services.rag_service import RAGService
 from tests.conftest import (
-    MockLLMWithTools,
-    MockLLMNoTools,
-    MockRepository,
     MockEmbedder,
+    MockLLMNoTools,
+    MockLLMWithTools,
+    MockRepository,
 )
 
 

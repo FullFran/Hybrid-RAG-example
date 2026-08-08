@@ -1,7 +1,5 @@
 """Settings configuration for MongoDB RAG Agent."""
 
-from typing import Optional
-
 from dotenv import load_dotenv
 from pydantic import Field
 from pydantic_settings import BaseSettings
@@ -19,9 +17,7 @@ class Settings(BaseSettings):
     )
 
     # MongoDB Configuration
-    mongodb_uri: Optional[str] = Field(
-        None, description="MongoDB Atlas connection string"
-    )
+    mongodb_uri: str | None = Field(None, description="MongoDB Atlas connection string")
 
     mongodb_database: str = Field(default="rag_db", description="MongoDB database name")
 
@@ -44,8 +40,8 @@ class Settings(BaseSettings):
     )
 
     # Supabase Configuration
-    supabase_url: Optional[str] = Field(None, description="Supabase project URL")
-    supabase_key: Optional[str] = Field(None, description="Supabase API key")
+    supabase_url: str | None = Field(None, description="Supabase project URL")
+    supabase_key: str | None = Field(None, description="Supabase API key")
 
     # LLM Configuration (Generic OpenAI-compatible)
     llm_api_key: str = Field(..., description="API key for the LLM provider")
@@ -91,14 +87,14 @@ def load_settings() -> Settings:
         settings = Settings()
 
         # Validation based on db_type
-        if settings.db_type == "mongo":
-            if not settings.mongodb_uri:
-                raise ValueError("MONGODB_URI is required when DB_TYPE is 'mongo'")
-        elif settings.db_type == "supabase":
-            if not settings.supabase_url or not settings.supabase_key:
-                raise ValueError(
-                    "SUPABASE_URL and SUPABASE_KEY are required when DB_TYPE is 'supabase'"
-                )
+        if settings.db_type == "mongo" and not settings.mongodb_uri:
+            raise ValueError("MONGODB_URI is required when DB_TYPE is 'mongo'")
+        elif settings.db_type == "supabase" and (
+            not settings.supabase_url or not settings.supabase_key
+        ):
+            raise ValueError(
+                "SUPABASE_URL and SUPABASE_KEY are required when DB_TYPE is 'supabase'"
+            )
 
         return settings
     except Exception as e:

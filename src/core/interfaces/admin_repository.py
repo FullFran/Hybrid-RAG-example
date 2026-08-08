@@ -23,7 +23,6 @@ class IAdminRepository(ABC):
         Use with caution - this operation is irreversible.
         Typically used for testing or resetting the database.
         """
-        pass
 
     @abstractmethod
     async def get_stats(self) -> dict:
@@ -32,4 +31,3 @@ class IAdminRepository(ABC):
         Returns:
             Dict with keys like 'document_count', 'chunk_count', 'storage_bytes'.
         """
-        pass

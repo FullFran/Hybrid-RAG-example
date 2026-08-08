@@ -1,9 +1,8 @@
 """Tests for ContextBuilder."""
 
-import pytest
-from src.services.context_builder import ContextBuilder, ContextResult
 from src.core.schemas.chunk import Chunk
 from src.core.schemas.search import SearchHit
+from src.services.context_builder import ContextBuilder, ContextResult
 
 
 class TestContextBuilder:

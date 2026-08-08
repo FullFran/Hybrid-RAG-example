@@ -1,3 +1,4 @@
+from src.core.dtos import SearchOptions
 from src.services.ingest_service import IngestService
 from src.services.rag_service import RAGService
 from src.settings import load_settings
@@ -15,7 +16,6 @@ def _get_repository(settings):
         return SupabaseRepository(
             url=settings.supabase_url,
             key=settings.supabase_key,
-            threshold=settings.semantic_match_threshold,
         )
     else:
         from src.infrastructure.database.mongo_repository import MongoRepository
@@ -53,7 +53,12 @@ def bootstrap_rag_service() -> RAGService:
         max_per_document=2,
     )
 
-    return RAGService(repository, llm, embedder, context_builder)
+    # The similarity threshold is retrieval policy, so it is configured here
+    # in the application layer and travels with each query, instead of being
+    # baked into the adapter at construction time.
+    default_options = SearchOptions(threshold=settings.semantic_match_threshold)
+
+    return RAGService(repository, llm, embedder, context_builder, default_options)
 
 
 def bootstrap_ingest_service() -> IngestService:
@@ -61,8 +66,8 @@ def bootstrap_ingest_service() -> IngestService:
     repository = _get_repository(settings)
 
     from src.infrastructure.embeddings.openai_embedder import OpenAIEmbedder
-    from src.infrastructure.ingestion.docling_parser import DoclingParser
     from src.infrastructure.ingestion.docling_chunker import DoclingChunker
+    from src.infrastructure.ingestion.docling_parser import DoclingParser
 
     embedder = OpenAIEmbedder(
         api_key=settings.embedding_api_key,
@@ -73,7 +78,11 @@ def bootstrap_ingest_service() -> IngestService:
     parser = DoclingParser()
     chunker = DoclingChunker(max_tokens=settings.embedding_dimension)
 
-    return IngestService(repository, embedder, parser, chunker)
+    # The concrete repository also implements IAdminRepository, so ingestion
+    # gets destructive access explicitly rather than by accident.
+    return IngestService(
+        repository, embedder, parser, chunker, admin_repository=repository
+    )
 
 
 def bootstrap_agent_service():

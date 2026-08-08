@@ -5,7 +5,7 @@ They are NOT domain entities - those live in src/core/schemas/.
 """
 
 from dataclasses import dataclass, field
-from typing import Any, List
+from typing import Any
 
 from src.core.schemas.search import SearchHit, SearchType
 
@@ -28,7 +28,7 @@ class SearchResponse:
     """Response from a search operation."""
 
     query: str
-    hits: List[SearchHit]
+    hits: list[SearchHit]
     total_hits: int
     search_type: SearchType
 
@@ -47,5 +47,5 @@ class ContextResult:
     """Result from context building with citations."""
 
     context: str
-    citations: List[Citation] = field(default_factory=list)
+    citations: list[Citation] = field(default_factory=list)
     truncated: bool = False

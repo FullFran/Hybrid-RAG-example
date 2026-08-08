@@ -1,11 +1,12 @@
 """Tests for RAGService hybrid search and generation."""
 
 import pytest
-from src.services.rag_service import RAGService
-from src.core.schemas.search import SearchType, SearchHit
+
 from src.core.schemas.chunk import Chunk
+from src.core.schemas.search import SearchHit, SearchType
 from src.services.context_builder import ContextBuilder
-from tests.conftest import MockRepository, MockEmbedder, MockLLMWithTools
+from src.services.rag_service import RAGService
+from tests.conftest import MockEmbedder, MockLLMWithTools, MockRepository
 
 
 class TestHybridSearch:
@@ -65,7 +66,8 @@ class TestHybridSearch:
         hits, _ = await rag.search("test", limit=5, search_type=SearchType.SEMANTIC)
 
         assert len(hits) == 1
-        assert repo.search_history == [("semantic", 5)]
+        # The default SearchOptions threshold travels down to the adapter.
+        assert repo.search_history == [("semantic", 5, 0.3)]
 
     @pytest.mark.asyncio
     async def test_text_only_search(self):

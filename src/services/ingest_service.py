@@ -1,11 +1,12 @@
 import logging
 import os
-from typing import Dict, Any
+from typing import Any
 
-from src.core.interfaces.embedder import IEmbedder
-from src.core.interfaces.repository import IRepository
-from src.core.interfaces.parser import IParser
+from src.core.interfaces.admin_repository import IAdminRepository
 from src.core.interfaces.chunker import IChunker
+from src.core.interfaces.embedder import IEmbedder
+from src.core.interfaces.parser import IParser
+from src.core.interfaces.repository import IRepository
 from src.core.schemas.chunk import Chunk
 from src.core.schemas.document import Document
 
@@ -21,6 +22,7 @@ class IngestService:
         embedder: IEmbedder,
         parser: IParser,
         chunker: IChunker,
+        admin_repository: IAdminRepository | None = None,
     ):
         """
         Initialize IngestService.
@@ -35,8 +37,9 @@ class IngestService:
         self.embedder = embedder
         self.parser = parser
         self.chunker = chunker
+        self._admin_repository = admin_repository
 
-    async def ingest_file(self, file_path: str, metadata: Dict[str, Any] = None):
+    async def ingest_file(self, file_path: str, metadata: dict[str, Any] = None):
         """
         Process and save a single file.
 
@@ -97,6 +100,20 @@ class IngestService:
                 return line[2:].strip()
         return os.path.splitext(os.path.basename(file_path))[0]
 
-    async def clean(self):
-        """Wipe all documents and chunks from the repository."""
-        await self.repository.clean_all()
+    async def clean(self) -> None:
+        """Wipe all documents and chunks from the repository.
+
+        Requires an ``IAdminRepository`` to have been injected. Ingestion does
+        not need destructive access to do its job, so it is not granted by
+        default: a caller that wants to wipe the database has to ask for that
+        capability explicitly when wiring the service.
+
+        Raises:
+            RuntimeError: If no admin repository was provided.
+        """
+        if self._admin_repository is None:
+            raise RuntimeError(
+                "clean() requires an admin repository. Construct IngestService "
+                "with admin_repository=... to enable destructive operations."
+            )
+        await self._admin_repository.clean_all()

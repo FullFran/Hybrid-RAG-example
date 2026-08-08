@@ -1,10 +1,11 @@
 import logging
 from datetime import datetime
-from typing import List
 
 from bson import ObjectId
+from bson.errors import InvalidId
 from motor.motor_asyncio import AsyncIOMotorClient
 
+from src.core.interfaces.admin_repository import IAdminRepository
 from src.core.interfaces.repository import IRepository
 from src.core.schemas.chunk import Chunk
 from src.core.schemas.document import Document
@@ -13,8 +14,12 @@ from src.core.schemas.search import SearchHit
 logger = logging.getLogger(__name__)
 
 
-class MongoRepository(IRepository):
-    """MongoDB implementation of the repository interface."""
+class MongoRepository(IRepository, IAdminRepository):
+    """MongoDB implementation of the repository and admin interfaces.
+
+    Implementing both is fine for a concrete adapter: what matters is that
+    consumers depend on the narrower interface they actually need.
+    """
 
     def __init__(
         self, uri: str, db_name: str, doc_collection: str, chunk_collection: str
@@ -29,25 +34,32 @@ class MongoRepository(IRepository):
         result = await self.documents.insert_one(doc_dict)
         return str(result.inserted_id)
 
-    async def save_chunks(self, chunks: List[Chunk]) -> None:
+    async def save_chunks(self, chunks: list[Chunk]) -> None:
         if not chunks:
             return
 
         chunk_dicts = []
         for chunk in chunks:
             cd = chunk.model_dump(exclude={"id"}, by_alias=True, mode="json")
-            # Ensure document_id is ObjectId if it's a string from Mongo
+            # Ensure document_id is an ObjectId when it arrives as a string.
+            # The catch is narrow on purpose: a bare 'except' here also
+            # swallowed KeyboardInterrupt and any genuine bug in serialisation,
+            # turning them into a silently mistyped document_id that only
+            # surfaced later as a join that matched nothing.
             try:
                 cd["document_id"] = ObjectId(cd["document_id"])
-            except:
-                pass
+            except (InvalidId, TypeError):
+                logger.warning(
+                    "document_id %r is not a valid ObjectId; storing it unchanged",
+                    cd.get("document_id"),
+                )
             chunk_dicts.append(cd)
 
         await self.chunks.insert_many(chunk_dicts, ordered=False)
 
     async def semantic_search(
-        self, vector: List[float], limit: int, threshold: float | None = None
-    ) -> List[SearchHit]:
+        self, vector: list[float], limit: int, threshold: float | None = None
+    ) -> list[SearchHit]:
         index_name = "vector_index"
         pipeline = [
             {
@@ -101,7 +113,7 @@ class MongoRepository(IRepository):
             )
         return results
 
-    async def text_search(self, query: str, limit: int) -> List[SearchHit]:
+    async def text_search(self, query: str, limit: int) -> list[SearchHit]:
         index_name = "text_index"
         pipeline = [
             {
@@ -161,6 +173,13 @@ class MongoRepository(IRepository):
         """Clear all documents and chunks from MongoDB."""
         await self.chunks.delete_many({})
         await self.documents.delete_many({})
+
+    async def get_stats(self) -> dict:
+        """Return document and chunk counts."""
+        return {
+            "document_count": await self.documents.count_documents({}),
+            "chunk_count": await self.chunks.count_documents({}),
+        }
 
     async def close(self):
         self.client.close()
